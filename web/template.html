@@ -490,9 +490,15 @@ flatRange.value = Math.round(DATA.threshold_default / M);
 flatRange.oninput = () => {
   state.flat = Number(flatRange.value) * M;
   document.getElementById("flat-val").textContent = usd(state.flat);
+  // Everything before the separator describes the line as it is set now. The
+  // rule's own $35M is a fixed reference and has to be marked as one, or the
+  // sentence reads as though the era figures were derived from it.
   document.getElementById("flat-note").textContent =
-    `the rule as written uses ${usd(DATA.threshold_default)}`
-    + ` — about ${usd(state.flat / inflation(1985))} for a 1985 film`;
+    `about ${usd(state.flat / inflation(1985))} for a 1985 film, `
+    + `${usd(state.flat / inflation(1965))} for a 1965 one`
+    + (state.flat === DATA.threshold_default
+       ? " — this is the line the rule as written uses"
+       : ` · the rule as written uses ${usd(DATA.threshold_default)}`);
   render();
 };
 
