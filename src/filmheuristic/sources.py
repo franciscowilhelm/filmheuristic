@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 from difflib import SequenceMatcher
+from urllib.parse import urlsplit
 
 
 def title_sim(a: str, b: str, strip_articles: bool = True) -> float:
@@ -40,6 +41,16 @@ UA = "filmheuristic/0.1 (personal watchlist research; contact via Letterboxd)"
 WD_API = "https://www.wikidata.org/w/api.php"
 WP_API = "https://en.wikipedia.org/w/api.php"
 TMDB_API = "https://api.themoviedb.org/3"
+
+# Minimum seconds between requests to each host. Wikimedia's anonymous burst
+# limit is the binding constraint on a full run -- once tripped it answers 429
+# with Retry-After: 35, so a request saved by hurrying costs thirty-five.
+# TMDB is authenticated and unbothered at this volume.
+HOST_INTERVAL = {
+    "en.wikipedia.org": 2.0,
+    "www.wikidata.org": 2.0,
+    "api.themoviedb.org": 0.05,
+}
 
 FILM_CLASSES = {
     "Q11424",    # film
@@ -129,6 +140,9 @@ class Client:
         self.http = httpx.Client(headers={"User-Agent": UA}, timeout=30,
                                  follow_redirects=True)
         self.tmdb_key = os.environ.get("TMDB_API_KEY") or _key_from_dotenv()
+        self._interval = dict(HOST_INTERVAL)
+        self._last: dict[str, float] = {}
+        self.throttled: dict[str, int] = {}
 
     @property
     def _tmdb_is_v4(self) -> bool:
@@ -141,21 +155,47 @@ class Client:
             params = {**params, "api_key": self.tmdb_key}
         return self._get(f"{TMDB_API}{path}", params, cache_key, headers=headers)
 
+    def _pace(self, host: str) -> None:
+        """Hold each host to its own minimum interval between requests."""
+        gap = self._interval.get(host, self.delay)
+        last = self._last.get(host)
+        if last is not None:
+            owed = gap - (time.monotonic() - last)
+            if owed > 0:
+                time.sleep(owed)
+        self._last[host] = time.monotonic()
+
     def _get(self, url, params, cache_key, headers=None):
         hit = self.cache.get(cache_key)
         if hit is not None:
             return hit
-        # Wikimedia throttles shared IPs hard; back off and honour Retry-After.
-        wait = self.delay
+        # Wikimedia enforces a burst limit per IP and answers 429 with
+        # Retry-After: 35 once it is tripped, which costs far more than going
+        # fast ever saves. A flat delay shared across three hosts does not
+        # express that: TMDB is keyed and does not care, while en.wikipedia.org
+        # and wikidata.org need room. So each host is paced separately, and a
+        # host that throttles us is slowed for the rest of the run rather than
+        # only for the request that tripped it.
+        host = urlsplit(url).netloc
         for attempt in range(7):
-            time.sleep(wait)
+            self._pace(host)
             r = self.http.get(url, params=params, headers=headers or {})
             if r.status_code in (429, 503):
+                self.throttled[host] = self.throttled.get(host, 0) + 1
+                was = self._interval.get(host, self.delay)
+                self._interval[host] = min(was * 1.5, 10.0)
                 ra = r.headers.get("Retry-After")
-                wait = float(ra) if ra and ra.isdigit() else min(wait * 3 or 1, 60)
-                wait = max(wait, 2)
+                time.sleep(float(ra) if ra and ra.isdigit()
+                           else min(2 * (attempt + 1), 60))
                 continue
             r.raise_for_status()
+            # Ease back towards the baseline after a clean answer. Without
+            # this, one burst of 429s early on slows every remaining film for
+            # the rest of the run: three throttles take Wikidata from 2s to
+            # nearly 7s a request and it never recovers.
+            base = HOST_INTERVAL.get(host, self.delay)
+            if self._interval.get(host, base) > base:
+                self._interval[host] = max(base, self._interval[host] * 0.97)
             out = r.json()
             self.cache.put(cache_key, out)
             return out
@@ -200,12 +240,47 @@ class Client:
         if best is None:
             return None
         _, qid, ent = best
+        return self._film_record(qid, ent)
+
+    def film_from_qid(self, qid: str, title: str, year: int | None) -> dict | None:
+        """Build the film record for a Wikidata id we already know.
+
+        TMDB's external_ids hands over the Wikidata id outright, which lets the
+        whole wbsearchentities step be skipped. That matters: every other
+        request in a lookup answers in under a second, while the entity search
+        is throttled hard enough to spend fifty-four seconds on one film.
+
+        The entity is still checked, not trusted: it has to be a film, and its
+        release years have to agree with the watchlist. An entity carrying no
+        release date at all is accepted here, unlike in a search, because the
+        identification did not come from matching a label -- TMDB already
+        verified title and year, and this is a cross-reference to it.
+        """
+        ents = self._get(WD_API, {
+            "action": "wbgetentities", "ids": qid,
+            "props": "claims|labels|sitelinks", "format": "json",
+        }, f"wdents::{qid}")
+        ent = ents.get("entities", {}).get(qid)
+        if not ent or "missing" in ent:
+            return None
+        classes = {c["mainsnak"]["datavalue"]["value"]["id"]
+                   for c in ent.get("claims", {}).get("P31", [])
+                   if c["mainsnak"].get("datavalue")}
+        if not classes & FILM_CLASSES:
+            return None
+        yrs = self._years(ent)
+        if year and yrs and min(abs(year - y) for y in yrs) > 2:
+            return None
+        return self._film_record(qid, ent)
+
+    def _film_record(self, qid: str, ent: dict) -> dict:
+        labels = self._labels_many(ent, ("P272", "P750", "P495"))
         return {
             "qid": qid,
             "years": self._years(ent),
-            "companies": self._labels(ent, "P272"),   # production company
-            "distributors": self._labels(ent, "P750"),
-            "countries": self._labels(ent, "P495"),
+            "companies": labels["P272"],              # production company
+            "distributors": labels["P750"],
+            "countries": labels["P495"],
             "enwiki": ent.get("sitelinks", {}).get("enwiki", {}).get("title"),
             "cost": self._cost(ent),
         }
@@ -221,18 +296,31 @@ class Client:
                     out.append(int(m.group(1)))
         return sorted(set(out))
 
-    def _labels(self, ent, prop):
-        qids = [c["mainsnak"]["datavalue"]["value"]["id"]
-                for c in ent.get("claims", {}).get(prop, [])
-                if c["mainsnak"].get("datavalue")]
-        if not qids:
-            return []
-        data = self._get(WD_API, {
-            "action": "wbgetentities", "ids": "|".join(qids[:50]),
-            "props": "labels", "languages": "en", "format": "json",
-        }, f"wdlabels::{'|'.join(sorted(qids[:50]))}")
-        return [e.get("labels", {}).get("en", {}).get("value", "")
-                for e in data.get("entities", {}).values()]
+    def _labels_many(self, ent, props) -> dict[str, list[str]]:
+        """Resolve several properties' labels in one request.
+
+        Each property used to cost its own wbgetentities call -- three per
+        film, every one of them throttled. The ids all come from the same
+        entity and the API takes fifty at a time, so one call does for all
+        three. Claim order is preserved, and ids Wikidata has no English label
+        for are dropped rather than returned as empty strings.
+        """
+        by_prop = {p: [c["mainsnak"]["datavalue"]["value"]["id"]
+                       for c in ent.get("claims", {}).get(p, [])
+                       if c["mainsnak"].get("datavalue")] for p in props}
+        ids = list(dict.fromkeys(q for qs in by_prop.values() for q in qs))[:50]
+        labels = {}
+        if ids:
+            data = self._get(WD_API, {
+                "action": "wbgetentities", "ids": "|".join(ids),
+                "props": "labels", "languages": "en", "format": "json",
+            }, f"wdlabels::{'|'.join(sorted(ids))}")
+            for q, e in data.get("entities", {}).items():
+                v = e.get("labels", {}).get("en", {}).get("value")
+                if v:
+                    labels[q] = v
+        return {p: [labels[q] for q in qs if q in labels]
+                for p, qs in by_prop.items()}
 
     @staticmethod
     def _cost(ent):
@@ -341,9 +429,13 @@ class Client:
         if best is None:
             return None
         mid = best["id"]
-        d = self._tmdb_get(f"/movie/{mid}", {}, f"tmdbmovie::{mid}")
+        # external_ids rides along on the same request, and carries the
+        # Wikidata id that saves the entity search entirely.
+        d = self._tmdb_get(f"/movie/{mid}", {"append_to_response": "external_ids"},
+                           f"tmdbmovie::{mid}::ext")
         return {
             "id": mid,
+            "wikidata_id": (d.get("external_ids") or {}).get("wikidata_id") or None,
             "release_date": d.get("release_date") or None,
             "status": d.get("status"),
             "budget": d.get("budget") or None,

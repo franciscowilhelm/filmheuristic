@@ -30,7 +30,19 @@ def gather(client: Client, title: str, year: int | None) -> dict:
             "wikipedia": None, "wikidata": None, "tmdb": None,
             "resolved": False, "company_source": None, "budget_source": None}
 
-    wd = client.find_film(title, year)
+    # TMDB first. It answers in under a second and is not rate-limited, and
+    # its external_ids carry the Wikidata id -- which turns the Wikidata step
+    # from a throttled label search into a direct fetch. Identity is still
+    # verified twice: TMDB on title and year, then the entity it points at has
+    # to be a film whose release years agree. Only when that fails do we fall
+    # back to searching Wikidata by name, which is the slow path.
+    t = client.tmdb(title, year)
+    wd = None
+    if t and t.get("wikidata_id"):
+        wd = client.film_from_qid(t["wikidata_id"], title, year)
+    if wd is None:
+        wd = client.find_film(title, year)
+
     wp = {}
     if wd:
         meta["resolved"] = True
@@ -52,7 +64,6 @@ def gather(client: Client, title: str, year: int | None) -> dict:
                                  + page.replace(" ", "_"))
             wp = client.infobox(page)
 
-    t = client.tmdb(title, year)
     if t:
         meta["resolved"] = True
         meta["tmdb"] = f"https://www.themoviedb.org/movie/{t['id']}"
@@ -140,6 +151,10 @@ def main(argv=None):
     low = sum(1 for v in verdicts if v.confidence == "low")
     print(f"\nH: {h}   A: {a}   unresolved: {unknown}   (low confidence: {low})")
     print(f"quota: {h} H films means {2 * h} A films owed")
+    if client.throttled:
+        hosts = ", ".join(f"{k} x{v}" for k, v in sorted(client.throttled.items()))
+        print(f"rate-limited during the run: {hosts} "
+              f"(pacing was slowed automatically)")
     print(f"written: {args.out}")
     return 0
 

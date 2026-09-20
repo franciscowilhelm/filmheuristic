@@ -206,13 +206,26 @@ side of the line. Both figures are kept, the rule runs on their mean, and
 `budget_straddles` flags the disagreement. TMDB also fills real gaps: it has budgets for
 films where Wikipedia has none.
 
-**Identity: Wikidata, then Wikipedia search, confirmed by TMDB.**
+**Identity: TMDB first, verified against Wikidata.**
 Titles are matched by name similarity *and* release year; a candidate that cannot be
 verified on year is rejected rather than guessed at. Without this, TMDB happily matched
 *Adolescence* to a documentary called *The Real Adolescence: Our Killer Kids*.
 
-Wikidata is asked first, but its entity search matches *labels*, which fails badly on a
-common word. Searching it for "Obsession" returns a Star Trek short story, a video game,
+TMDB is asked first, because it answers in well under a second, is authenticated and is
+not rate-limited at this volume — and because its `external_ids` carry the film's
+Wikidata id outright. That turns the Wikidata step from a fuzzy label search into a
+direct fetch of a known entity, which is worth more than it sounds: every other request
+in a lookup answers in about a second, while `wbsearchentities` is throttled hard enough
+to spend fifty-four seconds on a single film. On a twelve-film sample spanning 1937 to
+2026, TMDB had a Wikidata id for all twelve.
+
+Nothing is taken on trust for being fast. TMDB has to match on title and release year,
+and the Wikidata entity it hands over has to be a film whose own release years agree
+before anything is read off it. When either check fails, the older and slower path runs
+instead: search Wikidata by name, and then search Wikipedia.
+
+That fallback exists because Wikidata's entity search matches *labels*, which fails badly
+on a common word. Searching it for "Obsession" returns a Star Trek short story, a video game,
 a pornographic actress and an album before any film, and the film in question is not in
 the first twelve results at all — so step 1 saw no production companies and step 2 saw no
 budget, for a film whose Wikipedia article states both. When Wikidata comes back empty,
@@ -234,8 +247,14 @@ unrelated *The Obsession* from 2025. Article-stripping made that worse, since it
 "The Obsession" as a perfect match for "Obsession", so candidates are now also compared
 with articles intact and the strict figure breaks the tie.
 
-Wikimedia rate-limits shared IPs aggressively, so requests are paced and retried with
-backoff. A full run of a few hundred films takes on the order of fifteen minutes.
+**Wikimedia rate-limits shared IPs aggressively**, and the limit is a burst limit: trip
+it and en.wikipedia.org answers `429` with `Retry-After: 35`, so one request saved by
+hurrying costs thirty-five. A single delay shared across all three sources cannot express
+that, since TMDB does not care and Wikimedia does, so each host is paced separately
+(`HOST_INTERVAL` in `sources.py`). A host that throttles us is slowed for the rest of the
+run and then eased back after clean answers, and the run prints which hosts throttled it
+rather than hiding it in the timings. A full run of a few hundred films takes on the order
+of half an hour.
 
 ## Unresolved films
 
