@@ -5,6 +5,7 @@ Wikidata's SPARQL endpoint rate-limits hard from shared IPs, so we use the
 action API instead.
 """
 
+import atexit
 import json
 import math
 import os
@@ -55,19 +56,44 @@ FILM_CLASSES = {
 
 
 class Cache:
-    """Plain JSON on disk -- every network answer is stored, so reruns are free."""
+    """Plain JSON on disk -- every network answer is stored, so reruns are free.
+
+    Writes are batched. Saving on every answer re-serialises the whole file,
+    which is free at a few hundred kilobytes and ruinous once the cache has
+    grown: at 32MB a full run spent more time rewriting JSON than waiting on
+    the network, several seconds per film against a 0.6s request delay. The
+    file is written every FLUSH_EVERY answers and again on exit, so an
+    interrupted run costs at most the last few lookups, which are re-fetchable.
+
+    The write goes to a temporary file and is renamed over the original, so a
+    process killed mid-write cannot leave a truncated cache behind.
+    """
+
+    FLUSH_EVERY = 100
 
     def __init__(self, path: Path):
         self.path = path
         self.data = json.loads(path.read_text()) if path.exists() else {}
+        self._pending = 0
+        atexit.register(self.flush)
 
     def get(self, key):
         return self.data.get(key)
 
     def put(self, key, value):
         self.data[key] = value
+        self._pending += 1
+        if self._pending >= self.FLUSH_EVERY:
+            self.flush()
+
+    def flush(self):
+        if not self._pending:
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, indent=1, ensure_ascii=False))
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps(self.data, indent=1, ensure_ascii=False))
+        tmp.replace(self.path)
+        self._pending = 0
 
 
 def _key_from_dotenv() -> str | None:
@@ -252,9 +278,17 @@ class Client:
             "srsearch": f"{title} {year} film" if year else f"{title} film",
             "srlimit": 8, "format": "json", "formatversion": "2",
         }, f"wpsearch::{title}::{year}")
-        for hit in res.get("query", {}).get("search", []):
+        for hit in res.get("query", {}).get("search", [])[:5]:
             page = hit["title"]
             if title_sim(title, re.sub(r"\s*\(.*?\)\s*$", "", page)) < 0.85:
+                continue
+            # A disambiguator that does not say "film" belongs to something
+            # else -- "Obsession (video game)", "(album)", "(novel)". Skipping
+            # those before fetching the article saves a request each, which
+            # matters because Wikimedia throttles shared IPs hard and this
+            # fallback runs for every film Wikidata could not find.
+            dab = re.search(r"\(([^)]*)\)\s*$", page)
+            if dab and "film" not in dab.group(1).lower():
                 continue
             box = self.infobox(page)
             if not box:

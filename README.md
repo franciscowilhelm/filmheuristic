@@ -121,6 +121,21 @@ from one present-day figure. The slider sets the share; it starts at 30%, which
 is roughly what $35M is of a median studio film today, and it recalibrates itself if the
 decade figures are regenerated.
 
+**Non-US films: budget test on or off.** Lowering the line far enough to catch US
+mid-budget prestige also sweeps in well-funded cinema from everywhere else. On the 50
+most recent, a $12M line makes H of *Nickel Boys*, *Priscilla*, *Women Talking* and
+*Problemista* — and, in the same move, of *Dhurandhar*, *The Furious*, *Perfect Days*,
+*No Other Choice* and *EO*. One global number cannot separate the two, because they cost
+the same. Switching the budget test off for non-US films does: they are then A unless a
+major studio made or financed them, and the line governs US films only. At that $12M
+line it is the difference between 17 H and 12.
+
+The toggle is a real change to the rule, not a display option. It says that scale means
+something different outside the US system — that $20M of Korean or Japanese money does
+not buy what $20M of American money buys — and it rests entirely on step 1 for those
+films. Whether that is right is a judgment about what the rule is for. Films whose
+country could not be determined keep the budget test.
+
 ### Where the decade figures come from
 
 `scripts/decade_budgets.py` asks TMDB for US films credited to a major studio's
