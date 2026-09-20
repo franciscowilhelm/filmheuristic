@@ -21,6 +21,10 @@ def inflation_factor(year: int | None) -> float:
     return 1.0
 
 # Rough USD conversion -- "a rough conversion is enough" per the rule.
+# A currency missing from this table used to be read as dollars, which is not
+# rough but wrong: 430 million Hungarian forint became $430M and pushed *The
+# Turin Horse* over the line as a Hollywood film. Anything recognisable as a
+# currency and absent here is now refused instead (see UNCONVERTIBLE).
 FX = {
     "$": 1.0, "US$": 1.0, "USD": 1.0,
     "£": 1.27, "GBP": 1.27,
@@ -35,7 +39,51 @@ FX = {
     "FRF": 0.165, "F": 0.165, "₣": 0.165,
     "₤": 1.27, "ITL": 0.00056, "₨": 0.012,
     "MX$": 0.055, "HK$": 0.128, "NT$": 0.031, "RMB": 0.14, "CN¥": 0.14,
+    # Central and eastern Europe
+    "HUF": 0.0028, "PLN": 0.25, "CZK": 0.043, "RON": 0.22, "BGN": 0.55,
+    "HRK": 0.14, "RSD": 0.0092, "UAH": 0.024, "RUB": 0.011, "ISK": 0.0072,
+    # Elsewhere
+    "TRY": 0.029, "ILS": 0.27, "₪": 0.27, "ZAR": 0.055, "THB": 0.029,
+    "฿": 0.029, "PHP": 0.017, "₱": 0.017, "IDR": 0.000062, "VND": 0.000039,
+    "₫": 0.000039, "SGD": 0.74, "NZD": 0.60, "NZ$": 0.60, "MYR": 0.22,
+    "ARS": 0.001, "CLP": 0.001, "COP": 0.00024, "EGP": 0.021, "NGN": 0.00065,
+    # Pre-euro national currencies, via their fixed conversion rates
+    "ESP": 0.0065, "NLG": 0.49, "BEF": 0.027, "ATS": 0.079, "FIM": 0.18,
+    "IEP": 1.37, "GRD": 0.0032, "PTE": 0.0054, "LUF": 0.027,
+    # ISO spellings of currencies already above under their symbol
+    "BRL": 0.19, "CNY": 0.14, "DEM": 0.69, "HKD": 0.128, "MXN": 0.055,
+    "TWD": 0.031, "AED": 0.27, "SAR": 0.27, "PKR": 0.0036, "MAD": 0.10,
+    "PEN": 0.27, "IRR": 0.000024,
+    # National symbols, so a leading "zł 10.5 million" converts like its code
+    "zł": 0.25, "Kč": 0.043, "Ft": 0.0028, "₴": 0.024,
 }
+
+# Currencies whose present-day rate says nothing about what a film cost at the
+# time, because a redenomination or a command economy sits in between. Poland
+# knocked four zeroes off the zloty in 1995, Turkey six off the lira in 2005,
+# Romania four off the leu in 2005, Russia three off the rouble in 1998. A
+# budget written in one of these before its cutoff is refused rather than
+# converted: *On the Silver Globe* is "PLN 58 million" for a 1988 Polish film,
+# which is neither $58M nor, at the modern rate, anything meaningful.
+UNCONVERTIBLE_BEFORE = {
+    "PLN": 1995, "TRY": 2005, "RON": 2005, "RUB": 1998, "UAH": 1996,
+    "ARS": 1992, "BRL": 1994, "R$": 1994, "MXN": 1993, "MX$": 1993,
+    "RSD": 2006, "HRK": 1994, "zł": 1995, "₴": 1996, "₺": 2005,
+}
+
+# Codes and symbols that are recognisably money. A budget naming one of these
+# that FX has no rate for is refused, instead of being read as dollars.
+ISO_CODES = {
+    "AED", "ARS", "ATS", "AUD", "BEF", "BGN", "BRL", "CAD", "CHF", "CLP",
+    "CNY", "COP", "CZK", "DEM", "DKK", "EGP", "ESP", "EUR", "FIM", "FRF",
+    "GBP", "GRD", "HKD", "HRK", "HUF", "IDR", "IEP", "ILS", "INR", "IRR",
+    "ISK", "ITL", "JPY", "KRW", "LUF", "MAD", "MXN", "MYR", "NGN", "NLG",
+    "NOK", "NZD", "PEN", "PHP", "PKR", "PLN", "PTE", "RON", "RSD", "RUB",
+    "SAR", "SEK", "SGD", "THB", "TRY", "TWD", "UAH", "USD", "VND", "ZAR",
+}
+# Symbols that are plainly money and that this module has no rate for. A
+# budget naming one is refused rather than read as dollars.
+EXOTIC_SYMBOLS = {"₮", "₸", "₭", "₲", "₡", "₵", "﷼"}
 
 _SCALE = {
     "thousand": 1e3, "million": 1e6, "billion": 1e9,
@@ -57,6 +105,13 @@ _AMOUNT_RE = re.compile(
 # amount silently becomes dollars, so expand them properly.
 CURRENCY_TEMPLATES = {
     "us$": "$", "usd": "$", "currency": "", "monospaced": "",
+    # Wikipedia also writes the symbol itself as the template name. These were
+    # missing, so {{¥|195 million}} expanded to a bare "195 million" and *The
+    # Hidden Fortress* was recorded at $1.75 billion.
+    "¥": "JPY", "€": "EUR", "£": "GBP", "$": "$", "₩": "KRW", "₹": "INR",
+    "huf": "HUF", "pln": "PLN", "zloty": "PLN", "czk": "CZK", "try": "TRY",
+    "rub": "RUB", "ils": "ILS", "zar": "ZAR", "thb": "THB", "php": "PHP",
+    "sgd": "SGD", "nzd": "NZD", "esp": "ESP", "nlg": "NLG", "grd": "GRD",
     "inr": "INR", "indian rupee": "INR", "rs": "INR", "rupee": "INR",
     "krw": "KRW", "won": "KRW", "jpy": "JPY", "yen": "JPY",
     "eur": "EUR", "euro": "EUR", "gbp": "GBP", "pound": "GBP", "gbp2": "GBP",
@@ -120,6 +175,10 @@ NAMED = {
     r"lire|\bITL\b": "ITL",
     r"(swiss\s*)?francs?\s*\(CHF\)|\bCHF\b": "CHF",
     r"(chinese\s*)?yuan|renminbi|\bRMB\b|\bCNY\b": "RMB",
+    r"z\u0142otych|z\u0142oty|\bz\u0142\b|\bPLN\b": "PLN",
+    r"korun[ay]?|\bK\u010d\b|\bCZK\b": "CZK",
+    r"forints?|\bHUF\b": "HUF",
+    r"hryvni[ai]|\u20b4|\bUAH\b": "UAH",
 }
 _SCALE_WORDS = r"(?:million|billion|thousand|crore|lakhs?|mil|bn|m|k)"
 
@@ -132,8 +191,55 @@ def _hoist_trailing_currency(t: str) -> str:
     return t
 
 
-def parse_amount(text: str) -> tuple[float | None, str]:
-    """Parse a free-text budget string into nominal USD. Returns (usd, note)."""
+def _refuse_currency(text: str, matched: str | None, year: int | None) -> str | None:
+    """Name the currency we cannot honestly convert, if the text holds one.
+
+    Two cases, and both used to end with the figure being read as dollars:
+    a code or symbol that is plainly money but has no rate here, and a code
+    that has a rate which does not reach back past a redenomination.
+    """
+    cut = UNCONVERTIBLE_BEFORE.get((matched or "").upper()) \
+        or UNCONVERTIBLE_BEFORE.get(matched or "")
+    if cut and year is not None and year < cut:
+        return f"{matched} before its {cut} redenomination"
+    for code in re.findall(r"\b[A-Z]{3}\b", text):
+        if code in FX:
+            cut = UNCONVERTIBLE_BEFORE.get(code)
+            if cut and year is not None and year < cut:
+                return f"{code} before its {cut} redenomination"
+            continue
+        if code in ISO_CODES:
+            return code
+    for sym in EXOTIC_SYMBOLS:
+        if sym in text and sym not in FX:
+            return sym
+    return None
+
+
+def _hoist_trailing_code(t: str) -> str:
+    """Rewrite "430 million HUF" as "HUF 430 million".
+
+    NAMED above covers currencies spelled out in words. This covers the bare
+    ISO code, which Wikipedia uses constantly and which otherwise leaves the
+    amount looking like plain dollars -- the reading that turned 430 million
+    forint into $430M.
+    """
+    def swap(m):
+        code = m.group(2)
+        if code in FX or code in ISO_CODES:
+            return f"{code} {m.group(1)}"
+        return m.group(0)
+    return re.sub(rf"(\d[\d,.]*\s*{_SCALE_WORDS}?)\s*\b([A-Z]{{3}})\b", swap, t)
+
+
+def parse_amount(text: str, year: int | None = None) -> tuple[float | None, str]:
+    """Parse a free-text budget string into nominal USD. Returns (usd, note).
+
+    A currency this module cannot convert is refused rather than guessed at,
+    which leaves the film to the no-budget rule instead of inventing a figure
+    for it. The rule's own text asks only for a rough conversion; reading 430
+    million forint as $430M is not rough.
+    """
     if not text:
         return None, "no budget text"
     t = re.sub(r"<ref[^>]*>.*?</ref>|<ref[^>]*/>", " ", text, flags=re.S | re.I)
@@ -141,6 +247,7 @@ def parse_amount(text: str) -> tuple[float | None, str]:
     t = re.sub(r"\[\[([^\]|]*\|)?([^\]]*)\]\]", r"\2", t)
     t = t.replace("&nbsp;", " ")
     t = _hoist_trailing_currency(t)
+    t = _hoist_trailing_code(t)
     t = re.sub(r"(\d[\d,.]*)\s*[\u2013\u2014-]\s*(\d[\d,.]*)", r"\2", t)
     if re.search(r"\bunknown\b|\bn/?a\b", t, re.I) and not re.search(r"\d", t):
         return None, "budget stated as unknown"
@@ -160,9 +267,12 @@ def parse_amount(text: str) -> tuple[float | None, str]:
         usd = val * scale * FX.get(cur, FX.get(cur.upper(), 1.0))
         # Ranges ("$10-12 million"): take the top of the range.
         if best is None or usd > best[0]:
-            best = (usd, f"{cur}{m.group(2)} {m.group('scale') or ''}".strip())
+            best = (usd, f"{cur}{m.group(2)} {m.group('scale') or ''}".strip(), cur)
     if best is None:
         return None, f"could not parse budget: {text[:60]!r}"
+    bad = _refuse_currency(t, best[2], year)
+    if bad:
+        return None, f"currency not convertible: {bad}"
     return best[0], f"parsed {best[1]}"
 
 

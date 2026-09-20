@@ -81,6 +81,18 @@
   table.decades tr.empty td { color: var(--dim); }
   .caveats { font-size: 12.5px; color: var(--dim); margin: 14px 0 0; padding-left: 18px; }
   .caveats li { margin-bottom: 4px; }
+  details.flow { margin-bottom: 20px; }
+  details.flow summary { cursor: pointer; font-size: 13px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim);
+    list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.flow summary::-webkit-details-marker { display: none; }
+  details.flow summary::before { content: "\25B8"; transition: transform .15s; }
+  details.flow[open] summary::before { transform: rotate(90deg); }
+  #flow-diagram { margin-top: 16px; overflow: auto; text-align: center;
+    max-height: 70vh; }
+  #flow-diagram svg { height: auto; }
+  #flow-fallback { font-family: var(--mono); font-size: 12px; color: var(--dim);
+    text-align: left; white-space: pre; margin: 0; }
   footer { margin-top: 36px; font-size: 12.5px; color: var(--dim); }
   @media (max-width: 620px) {
     .film { grid-template-columns: 22px 1fr auto; }
@@ -142,6 +154,19 @@
       </div>
     </div>
   </div>
+
+  <details class="panel flow" id="flow">
+    <summary>How the rule decides, as currently set</summary>
+    <div id="flow-diagram"><pre id="flow-fallback">film
+ |
+ +- major studio among the production companies? -- yes --> H
+ |
+ +- US film before 1980, major as distributor? --- yes --> H
+ |
+ +- budget above the line? ----------------------- yes --> H
+ |
+ `- otherwise ----------------------------------------> A</pre></div>
+  </details>
 
   <div class="panel">
     <h2>Where that leaves the watchlist</h2>
@@ -323,7 +348,60 @@ function render() {
     : "";
   renderDecades();
   if (typeof history !== "undefined" && history.replaceState) writeHash();
+  if (typeof setTimeout === "function") scheduleFlow();
 }
+
+/* The diagram describes the rule as the controls currently have it, so it is
+   worth re-reading after every change rather than being a fixed picture. */
+function flowSource() {
+  const line = state.mode === "flat"
+    ? usd(state.flat) + " today"
+    : (state.share * 100).toFixed(0) + "% of its decade";
+  const L = [
+    "flowchart TD",
+    '  F([Film]) --> R{"identified<br/>and released?"}',
+    '  R -- no --> Q(["?"])',
+    '  R -- yes --> B{"major studio<br/>produced it?"}',
+    "  B -- yes --> H",
+  ];
+  let prev = "B";
+  if (state.eraDistributor) {
+    L.push('  B -- no --> E{"pre-1980 US,<br/>major distributed?"}',
+           "  E -- yes --> H");
+    prev = "E";
+  }
+  if (!state.budgetNonUs) {
+    L.push(`  ${prev} -- no --> N{"non-US?"}`, "  N -- yes --> A2");
+    prev = "N";
+  }
+  L.push(`  ${prev} -- no --> K{"budget<br/>known?"}`,
+         "  K -- no --> A2",
+         `  K -- yes --> T{"over<br/>${line}?"}`,
+         "  T -- yes --> H",
+         "  T -- no --> A2",
+         '  H(["H"])',
+         '  A2(["A"])',
+         "  classDef h fill:#b4452e,stroke:#b4452e,color:#fff",
+         "  classDef a fill:#2f6f5e,stroke:#2f6f5e,color:#fff",
+         "  classDef q fill:#8a8a8a,stroke:#8a8a8a,color:#fff",
+         "  class H h", "  class A2 a", "  class Q q");
+  return L.join("\n");
+}
+
+let flowN = 0, flowTimer = null;
+function renderFlow() {
+  const box = document.getElementById("flow-diagram");
+  const open = document.getElementById("flow");
+  if (!box || !open || !open.open || !window.__mermaid) return;
+  window.__mermaid.render("flowsvg" + (++flowN), flowSource())
+    .then(r => { box.innerHTML = r.svg; })
+    .catch(() => { /* leave the plain-text fallback in place */ });
+}
+function scheduleFlow() {
+  clearTimeout(flowTimer);
+  flowTimer = setTimeout(renderFlow, 200);
+}
+window.__renderFlow = renderFlow;
 
 const stat = (n, k) => `<div class="stat"><div class="n">${n}</div><div class="k">${k}</div></div>`;
 
@@ -501,9 +579,28 @@ document.getElementById("nus-off").onclick = () => setNonUs(false);
 const initialMode = readHash();
 flatRange.oninput();
 decRange.oninput();
+const flowEl = document.getElementById("flow");
+if (flowEl) flowEl.addEventListener("toggle", renderFlow);
 setEra(state.eraDistributor);
 setNonUs(state.budgetNonUs);
 setMode(initialMode);
+</script>
+<script type="module">
+  /* The page works without this: the details box already holds a plain-text
+     version of the same flowchart, which is what stays on screen offline or
+     if the CDN is unreachable. */
+  try {
+    const mermaid = (await import(
+      "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")).default;
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    mermaid.initialize({ startOnLoad: false, securityLevel: "strict",
+                         theme: dark ? "dark" : "default",
+                         themeVariables: { fontSize: "13px" },
+                         flowchart: { curve: "basis", useMaxWidth: false,
+                                      nodeSpacing: 26, rankSpacing: 40 } });
+    window.__mermaid = mermaid;
+    if (window.__renderFlow) window.__renderFlow();
+  } catch (e) { /* fallback stays */ }
 </script>
 </body>
 </html>

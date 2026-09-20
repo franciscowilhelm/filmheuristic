@@ -124,6 +124,11 @@ and watching the watchlist re-sort as it moves. Open it directly — no server:
 uv run python web/build.py && open web/index.html
 ```
 
+A collapsible **"how the rule decides"** box draws the current settings as a flowchart,
+rebuilt whenever a control moves, so the diagram always describes the rule as it stands
+rather than as it was written. It renders with Mermaid from a CDN and falls back to a
+plain-text version of the same chart offline.
+
 `build.py` bakes the CSVs in `out/`, the decade table below, and the inflation
 factors read straight out of `filmheuristic.budget` into the page, so it cannot
 drift from the classifier. Re-run it after a new classification run. Step 1 is
@@ -316,7 +321,15 @@ for an unreleased blockbuster, so two cases are separated out:
   put the gap nearer 8x. A single threshold in today's money is therefore not
   era-neutral, whatever value it is set to.
 - **Foreign-currency budgets are converted at present-day rates**, not the rate at the
-  time of production. The rule's own text calls a rough conversion sufficient.
+  time of production. The rule's own text calls a rough conversion sufficient. What is
+  *not* sufficient is reading an unknown currency as dollars, which is what used to
+  happen: 430 million Hungarian forint became $430M and made *The Turin Horse* a
+  Hollywood film, `{{¥|195 million}}` lost its yen and recorded *The Hidden Fortress* at
+  $1.75 billion. A budget naming a currency this module has no rate for is now refused,
+  and so is one written in a currency that has been redenominated since — *On the Silver
+  Globe* is "PLN 58 million" for a 1988 Polish film, which is neither $58M nor, at the
+  modern rate, anything meaningful. Those films fall to the no-budget rule instead of
+  carrying an invented figure.
 - **The studio list is a judgment call in places.** Touchstone, Hollywood Pictures and
   Caravan are treated as Disney majors (in-house brands, unlike acquired specialty arms);
   Working Title is treated as Universal; Screen Gems is treated as a specialty label and

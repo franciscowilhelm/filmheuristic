@@ -74,7 +74,7 @@ def budget_figures(v: "Verdict", meta, year):
         raw = budgets.get(src)
         if not raw:
             continue
-        nominal, note = bud.parse_amount(raw)
+        nominal, note = bud.parse_amount(raw, year)
         val = bud.today_usd(nominal, year)
         if val is not None:
             per_source[src] = val
