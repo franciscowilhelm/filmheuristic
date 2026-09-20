@@ -108,6 +108,12 @@
           <button id="mode-decade" aria-pressed="false">Per decade</button>
         </span>
       </label>
+      <label class="field">Pre-1980 US films
+        <span class="modes">
+          <button id="era-on" aria-pressed="true">Distributor counts</button>
+          <button id="era-off" aria-pressed="false">Production only</button>
+        </span>
+      </label>
       <label class="field">Non-US films
         <span class="modes">
           <button id="nus-on" aria-pressed="true">Budget test applies</button>
@@ -115,6 +121,7 @@
         </span>
       </label>
     </div>
+    <div class="note" id="era-note"></div>
     <div class="note" id="nus-note"></div>
 
     <div class="slider" id="flat-slider">
@@ -181,6 +188,7 @@ const state = {
   flat: DATA.threshold_default,
   share: 0.5,
   budgetNonUs: true,
+  eraDistributor: true,
 };
 
 /* The per-decade slider starts where it reproduces today's rule: the share of a
@@ -205,6 +213,12 @@ function thresholdFor(film) {
 function verdictFor(film) {
   if (film.verdict === "?") return { v: "?", why: film.reason, step: "none" };
   if (film.majors) return { v: "H", why: film.reason, step: "1" };
+  // Only set when the classifier found a major in |distributor= on a US film
+  // made before 1980 and no major among its production companies, so the
+  // era conditions are already baked in -- the page only chooses whether to
+  // honour it.
+  if (state.eraDistributor && film.distributor_majors)
+    return { v: "H", why: film.reason, step: "1d" };
   // Lowering the line to catch US mid-budget prestige also sweeps in
   // well-funded films from everywhere else -- Dhurandhar and Perfect Days
   // arrive alongside Nickel Boys. Switching the budget test off for non-US
@@ -240,6 +254,7 @@ function render() {
      divisor is constant and this is just budget order. */
   const withBudget = scored.filter(x => x.f.budget_usd_today != null && x.r.step === "2");
   const step1 = scored.filter(x => x.r.step === "1");
+  const era = scored.filter(x => x.r.step === "1d");
   const skipped = scored.filter(x => x.r.step === "skipped");
   const nothing = scored.filter(x => x.r.step === "none");
   skipped.sort((a, b) => (b.f.budget_usd_today || 0) - (a.f.budget_usd_today || 0));
@@ -284,6 +299,12 @@ function render() {
   if (step1.length) {
     parts.push(`<div class="cut">decided at step 1 — a major studio made or financed these</div>`);
     parts.push(...step1.map(filmRow));
+  }
+  if (era.length) {
+    era.sort((a, b) => (a.f.year || 0) - (b.f.year || 0));
+    parts.push(`<div class="cut">pre-1980 US films — a major distributed and, `
+      + `on this reading, financed them (${era.length})</div>`);
+    parts.push(...era.map(filmRow));
   }
   if (skipped.length) {
     parts.push(`<div class="cut">non-US — budget test switched off `
@@ -415,6 +436,7 @@ function readHash() {
     decRange.value = Math.round(state.share * 100);
   }
   if (q.get("nus") === "0") state.budgetNonUs = false;
+  if (q.get("era") === "0") state.eraDistributor = false;
   return q.get("mode") === "decade" && decadeRows.length ? "decade" : "flat";
 }
 
@@ -424,8 +446,22 @@ function writeHash() {
     ...(state.mode === "flat" ? { t: String(state.flat / M) }
                               : { k: String(Math.round(state.share * 100)) }),
     ...(state.budgetNonUs ? {} : { nus: "0" }),
+    ...(state.eraDistributor ? {} : { era: "0" }),
   });
   history.replaceState(null, "", "#" + q);
+}
+
+function setEra(on) {
+  state.eraDistributor = on;
+  document.getElementById("era-on").setAttribute("aria-pressed", on);
+  document.getElementById("era-off").setAttribute("aria-pressed", !on);
+  document.getElementById("era-note").textContent = on
+    ? "Before 1980 the majors financed far more than they produced, and "
+      + "Wikipedia files that under distributor. Reading it as a financing "
+      + "credit makes Blazing Saddles and Cool Hand Luke H."
+    : "Step 1 read strictly: only a production credit counts, so mid-century "
+      + "films financed by a major fall through to the budget test.";
+  render();
 }
 
 function setNonUs(on) {
@@ -457,12 +493,15 @@ if (!decadeRows.length) {
   decBtn.onclick = () => setMode("decade");
 }
 
+document.getElementById("era-on").onclick = () => setEra(true);
+document.getElementById("era-off").onclick = () => setEra(false);
 document.getElementById("nus-on").onclick = () => setNonUs(true);
 document.getElementById("nus-off").onclick = () => setNonUs(false);
 
 const initialMode = readHash();
 flatRange.oninput();
 decRange.oninput();
+setEra(state.eraDistributor);
 setNonUs(state.budgetNonUs);
 setMode(initialMode);
 </script>

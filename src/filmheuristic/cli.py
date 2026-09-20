@@ -12,8 +12,8 @@ from .sources import Cache, Client
 FIELDS = ["title", "year", "verdict", "reason", "confidence", "majors",
           "budget_usd_today", "budget_wikipedia_today", "budget_tmdb_today",
           "budget_straddles", "budget_raw", "budget_source", "countries",
-          "non_us", "companies", "company_source", "wikipedia", "wikidata",
-          "tmdb", "notes"]
+          "non_us", "companies", "company_source", "distributor_majors",
+          "distributors", "wikipedia", "wikidata", "tmdb", "notes"]
 
 
 def gather(client: Client, title: str, year: int | None) -> dict:
@@ -26,7 +26,8 @@ def gather(client: Client, title: str, year: int | None) -> dict:
     wrongly make it H -- so they are fallbacks, used only when Wikipedia has
     nothing to say.
     """
-    meta = {"companies": [], "countries": [], "budget_raw": None,
+    meta = {"companies": [], "countries": [], "distributors": [],
+            "budget_raw": None,
             "wikipedia": None, "wikidata": None, "tmdb": None,
             "resolved": False, "company_source": None, "budget_source": None}
 
@@ -77,6 +78,16 @@ def gather(client: Client, title: str, year: int | None) -> dict:
             meta["company_source"] = src
             break
 
+    # Distributors, for the studio-system reading of step 1. Wikipedia's
+    # |distributor= is the only source that separates this from |studio=;
+    # Wikidata's P750 is the fallback.
+    for dists, src in ((wp.get("distributors"), "wikipedia:distributor"),
+                       (wd["distributors"] if wd else None, "wikidata:P750")):
+        if dists:
+            meta["distributors"] = list(dists)
+            meta["distributor_source"] = src
+            break
+
     # Step 2 input: keep both figures. They disagree often enough to matter
     # near the threshold (Grand Budapest: $25M on Wikipedia, $30M on TMDB),
     # so the rule runs on their average and we report the spread.
@@ -107,6 +118,9 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=20260920)
     ap.add_argument("-o", "--out", type=Path, default=Path("out/verdicts.csv"))
     ap.add_argument("--cache", type=Path, default=Path("data/cache.json"))
+    ap.add_argument("--no-era-distributor", action="store_true",
+                    help="read step 1 strictly: never let a distributor credit "
+                         "decide, even for a pre-1980 US film")
     args = ap.parse_args(argv)
 
     rows = read_watchlist(args.watchlist)
@@ -128,7 +142,8 @@ def main(argv=None):
         year = int(row["Year"]) if row.get("Year", "").isdigit() else None
         try:
             meta = gather(client, title, year)
-            v = classify(title, year, meta)
+            v = classify(title, year, meta,
+                         era_distributor=not args.no_era_distributor)
         except Exception as e:      # keep the run going, but never fake an "A"
             from .classify import Verdict
             v = Verdict(title=title, year=year, verdict="?",

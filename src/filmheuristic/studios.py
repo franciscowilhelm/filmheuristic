@@ -73,6 +73,23 @@ MAJORS = [
     (r"radio[\s-]*keith[\s-]*orpheum", "RKO"),
 ]
 
+# Before this year, a major named as distributor is taken as evidence that the
+# major financed the film, and step 1 may act on it.
+#
+# After the Paramount decrees the majors stopped producing most of what they
+# released and started financing nominally independent productions instead.
+# Wikipedia records that arrangement exactly as it was -- |studio= names the
+# producer, |distributor= names the major -- so *Blazing Saddles* is Crossbow
+# Productions, *Cool Hand Luke* is Jalem, *Midnight Cowboy* is Jerome Hellman.
+# Read strictly, step 1 finds no major behind any of them.
+#
+# The licence this grants is deliberately narrow. It applies only to US
+# productions, because for a foreign film a major distributor means the thing
+# the distributor rule was written to ignore: a territorial pickup. Paramount
+# handled *Nights of Cabiria* in the United States and that must not make a
+# Fellini film Hollywood.
+DISTRIBUTOR_ERA_BEFORE = 1980
+
 # Groups whose H status only holds for films released before this year.
 # RKO stopped being a major long ago; everything else on the list is current.
 CLASSIC_ONLY = {"RKO": 1970}
@@ -129,3 +146,17 @@ def scan(companies: list[str], year: int | None) -> list[tuple[str, str]]:
         if m and m not in hits:
             hits.append(m)
     return hits
+
+
+def era_distributor_hits(distributors, year, non_us) -> list[tuple[str, str]]:
+    """Majors credited as distributor that step 1 may treat as financiers.
+
+    Empty unless the film is from before DISTRIBUTOR_ERA_BEFORE and is a US
+    production. A film whose countries could not be determined is not assumed
+    to be American.
+    """
+    if not distributors or year is None or year >= DISTRIBUTOR_ERA_BEFORE:
+        return []
+    if non_us is not False:          # True, or None for unknown
+        return []
+    return scan(distributors, year)

@@ -29,7 +29,7 @@ YEARS = range(1900, 2036)
 # checking a verdict by hand, which the page does with links instead.
 KEEP_NUM = ("budget_usd_today", "budget_wikipedia_today", "budget_tmdb_today")
 KEEP_STR = ("title", "verdict", "reason", "confidence", "majors", "countries",
-            "budget_source", "wikipedia", "tmdb")
+            "budget_source", "distributor_majors", "wikipedia", "tmdb")
 
 
 def row_of(r: dict) -> dict:

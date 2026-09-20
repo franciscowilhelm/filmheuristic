@@ -31,6 +31,22 @@ Disney years — answer "no" here and go on to the budget test. Netflix, Apple, 
 A24, Neon and DreamWorks SKG are deliberately left out of step 1 so that budget decides
 them.
 
+**Step 1 before 1980 — the distributor is read as the financier.** After the Paramount
+decrees the majors financed far more than they produced. *Blazing Saddles* is credited to
+Crossbow Productions, *Cool Hand Luke* to Jalem, *Midnight Cowboy* to Jerome Hellman, with
+Warner Bros., Warner Bros.-Seven Arts and United Artists appearing only as distributors.
+Read strictly, step 1 finds no major behind any of them. So for **US** films released
+before 1980, a major in `|distributor=` counts as a financing credit and answers "yes".
+
+The licence is narrow on purpose. It does not extend to films made outside the US, where
+a major distributor means the thing the distributor rule exists to ignore — a territorial
+pickup. Paramount handled *Nights of Cabiria* in the United States and that must not make
+a Fellini film Hollywood. Production country is known for 100% of the pre-1980 films in
+this watchlist and 97% overall, and a film whose country cannot be established is not
+assumed to be American. Verdicts from this reading are an inference from the era rather
+than a credit, so they are never `high` confidence, and `--no-era-distributor` turns the
+whole thing off.
+
 **Step 2 — budget in today's money.** Original budgets are inflated by decade
 (1970s ×5.5, 1980s ×3, 1990s ×2, 2000s ×1.6, 2010s ×1.3) and converted roughly to USD.
 The ~$35M threshold is therefore about $12M for an 80s film.
@@ -65,6 +81,9 @@ uv run filmheuristic data/<export>/watchlist.csv -n 10 --seed 20260920
 
 # everything
 uv run filmheuristic data/<export>/watchlist.csv -o out/all.csv
+
+# read step 1 strictly -- never let a distributor credit decide
+uv run filmheuristic data/<export>/watchlist.csv --no-era-distributor -o out/strict.csv
 ```
 
 Input is the `watchlist.csv` from a Letterboxd data export (`Name`, `Year` columns);
@@ -83,6 +102,7 @@ One row per film in `out/*.csv`. The columns that matter when checking a verdict
 | `reason` | the sentence explaining which step decided it |
 | `confidence` | `high` / `medium` / `low` / `none` — see below |
 | `majors` | which major studio group was matched, if any |
+| `distributor_majors` | major matched in `|distributor=` under the pre-1980 rule |
 | `budget_usd_today` | inflated, currency-converted, averaged across sources |
 | `budget_wikipedia_today`, `budget_tmdb_today` | the two figures separately |
 | `budget_straddles` | true when the sources fall on opposite sides of $35M |
@@ -120,6 +140,10 @@ cost in that decade*, so it tracks the era instead of being CPI-inflated back
 from one present-day figure. The slider sets the share; it starts at 30%, which
 is roughly what $35M is of a median studio film today, and it recalibrates itself if the
 decade figures are regenerated.
+
+**Pre-1980 US films: distributor counts, or production only.** The same question step 1
+answers by default, made visible. Switched off, mid-century films financed by a major fall
+through to the budget test, and 15 films on this watchlist go back from H to A.
 
 **Non-US films: budget test on or off.** Lowering the line far enough to catch US
 mid-budget prestige also sweeps in well-funded cinema from everywhere else. On the 50
@@ -278,19 +302,14 @@ for an unreleased blockbuster, so two cases are separated out:
 - **Older films have thinner data.** Budget coverage on Wikipedia and TMDB falls off
   before the 1980s, and the inflation multipliers are rough by construction. Expect more
   low-confidence A verdicts the further back the watchlist goes.
-- **Step 1 is blind to mid-century studio financing.** From roughly 1950 to 1980 the
-  majors financed and distributed films that a nominally independent company produced,
-  and Wikipedia records that arrangement exactly as it was: `|studio=` names the
-  producer, `|distributor=` names the major. *Blazing Saddles* is Crossbow Productions
-  (Warner Bros.), *Cool Hand Luke* is Jalem (Warner Bros.-Seven Arts), *Anatomy of a
-  Murder* is Carlyle (Columbia), *Midnight Cowboy* is Jerome Hellman (United Artists),
-  *Hannah and Her Sisters* is Rollins/Joffe (Orion). Step 1 refuses to count a
-  distributor, which is the rule that keeps *Brazil* and *Red Rock West* honest, so for
-  this entire era it answers "no major" and the budget test decides alone. The threshold
-  therefore does *more* work on old films than on new ones, which is the opposite of how
-  it looks. On the full watchlist this is where flat and per-decade thresholds disagree:
-  all 18 films they classify differently are pre-1990, and every one is A under the flat
-  $35M and H under its own decade's line.
+- **The pre-1980 distributor rule is an inference, and it cuts off at a border and a
+  year.** It reads a distribution credit as evidence of financing, which was usually but
+  not always true, and it applies only to US productions. *The Devils* (1971) was
+  genuinely financed by Warner Bros. but is a British production, so it stays A; the rule
+  would rather miss that than turn *Nights of Cabiria* into a Hollywood film. 1980 is a
+  judgment call standing in for a gradual change. On this watchlist the rule decides 18
+  films and moves 15 of them from A to H — the toggle in the explorer shows exactly which,
+  and `DISTRIBUTOR_ERA_BEFORE` in `studios.py` is meant to be edited.
 - **Inflation is consumer-price inflation, which film budgets have outrun.**
   The factors in `budget.py` imply a 1980s film cost 2.3x less than a 2010s one;
   the median major-studio budgets in [Threshold explorer](#threshold-explorer)
