@@ -5,7 +5,8 @@
   "caveats": [
     "TMDB reports a budget for a minority of films and those it reports skew large and well known; this is a median of reported budgets.",
     "TMDB company credits mix production and distribution, so a studio pickup can enter the sample.",
-    "Sampled up to 240 films per decade by TMDB popularity, which skews towards films still watched today."
+    "Sampled up to 240 films per decade by TMDB popularity, which skews towards films still watched today.",
+    "The 2020s median is the 2010s figure carried forward. It measured $90M, below the 2010s, which reflects an incomplete decade and missing budgets for the newest films more than it reflects cost."
   ],
   "companies": {
     "Walt Disney Pictures": 2,
@@ -115,10 +116,12 @@
       "decade": 2020,
       "sampled": 240,
       "with_budget": 216,
-      "median": 90000000,
+      "median": 126000000,
       "p25": 45000000,
       "p75": 165750000,
-      "mean": 112974074
+      "mean": 112974074,
+      "median_measured": 90000000,
+      "median_source": "carried forward from the 2010s"
     }
   ]
 }

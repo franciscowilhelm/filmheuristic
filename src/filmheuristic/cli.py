@@ -41,6 +41,17 @@ def gather(client: Client, title: str, year: int | None) -> dict:
                 wd["enwiki"].replace(" ", "_")
             wp = client.infobox(wd["enwiki"])
 
+    # Wikidata's entity search misses films with common-word titles entirely.
+    # Wikipedia's full-text search finds them, and the infobox it reaches is
+    # the best source for both steps, so it is worth a second look.
+    if not meta["wikipedia"]:
+        page = client.find_wikipedia_page(title, year)
+        if page:
+            meta["resolved"] = True
+            meta["wikipedia"] = ("https://en.wikipedia.org/wiki/"
+                                 + page.replace(" ", "_"))
+            wp = client.infobox(page)
+
     t = client.tmdb(title, year)
     if t:
         meta["resolved"] = True

@@ -117,8 +117,9 @@ that change side are tagged with the verdict they used to have.
 
 **Per decade** — the line becomes a *share of what a major-studio film actually
 cost in that decade*, so it tracks the era instead of being CPI-inflated back
-from one present-day figure. The slider sets the share; it starts at 40%, which
-is roughly what $35M is of a median studio film today.
+from one present-day figure. The slider sets the share; it starts at 30%, which
+is roughly what $35M is of a median studio film today, and it recalibrates itself if the
+decade figures are regenerated.
 
 ### Where the decade figures come from
 
@@ -146,7 +147,9 @@ the MPAA's average negative cost is an average rather than a median, stops in
 | 1990s | $45.0M | 235/240 |
 | 2000s | $85.0M | 240/240 |
 | 2010s | $126.0M | 240/240 |
-| 2020s | $90.0M | 216/240 |
+| 2020s | $126.0M † | 216/240 |
+
+† The 2020s median is the 2010s figure carried forward. It measured $90M, below the 2010s, which cannot be a real fall in what a studio film costs: the decade is incomplete, COVID-era slates sit in the middle of it, and TMDB has no budget yet for many 2025-26 titles. Some genuine pullback is real — streaming took the mid-budget slate — but not a third, so the two decades share one baseline.
 
 Read it with its biases in view, all three of which are recorded in
 `web/decade_budgets.json`: TMDB reports a budget for a minority of older films
@@ -188,10 +191,33 @@ side of the line. Both figures are kept, the rule runs on their mean, and
 `budget_straddles` flags the disagreement. TMDB also fills real gaps: it has budgets for
 films where Wikipedia has none.
 
-**Identity: Wikidata, confirmed by TMDB.**
+**Identity: Wikidata, then Wikipedia search, confirmed by TMDB.**
 Titles are matched by name similarity *and* release year; a candidate that cannot be
 verified on year is rejected rather than guessed at. Without this, TMDB happily matched
 *Adolescence* to a documentary called *The Real Adolescence: Our Killer Kids*.
+
+Wikidata is asked first, but its entity search matches *labels*, which fails badly on a
+common word. Searching it for "Obsession" returns a Star Trek short story, a video game,
+a pornographic actress and an album before any film, and the film in question is not in
+the first twelve results at all — so step 1 saw no production companies and step 2 saw no
+budget, for a film whose Wikipedia article states both. When Wikidata comes back empty,
+Wikipedia's own full-text search is tried instead: it finds `Obsession (2025 film)` first,
+because the disambiguator is in the page title. The candidate page is still verified on
+year before anything is read off it.
+
+This matters beyond filling gaps. Where Wikidata failed, the classifier fell back to
+TMDB's flat company list — the one that mixes producers and distributors. *Tony* (2026)
+was filed as A on TMDB's credits, which list A24; Wikipedia's `|studio=` shows A24 is the
+*distributor* and Metro-Goldwyn-Mayer produced it, which makes it H at step 1.
+
+**Release years disagree by one, constantly.** A film that premieres at a festival in
+September and opens the following May has two defensible years, and Letterboxd records
+the first while TMDB records the second. A one-year gap is therefore tolerated, and — more
+importantly — is not allowed to outweigh the title. It used to be: an exact-year match was
+worth half of a perfect title match, so *Obsession* (TIFF 2025, released 2026) lost to an
+unrelated *The Obsession* from 2025. Article-stripping made that worse, since it scores
+"The Obsession" as a perfect match for "Obsession", so candidates are now also compared
+with articles intact and the strict figure breaks the tie.
 
 Wikimedia rate-limits shared IPs aggressively, so requests are paced and retried with
 backoff. A full run of a few hundred films takes on the order of fifteen minutes.

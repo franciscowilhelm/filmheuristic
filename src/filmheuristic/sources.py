@@ -6,6 +6,7 @@ action API instead.
 """
 
 import json
+import math
 import os
 import re
 import time
@@ -15,11 +16,19 @@ import httpx
 from difflib import SequenceMatcher
 
 
-def title_sim(a: str, b: str) -> float:
-    """Loose title similarity, ignoring articles, punctuation and case."""
+def title_sim(a: str, b: str, strip_articles: bool = True) -> float:
+    """Title similarity, ignoring punctuation and case.
+
+    Articles are dropped by default, because Letterboxd and TMDB disagree about
+    them constantly. That tolerance has a cost: it makes *The Obsession* a
+    perfect match for *Obsession*, which are different films. Callers that are
+    choosing between candidates should score with strip_articles=False as well,
+    and let the strict figure break the tie.
+    """
     def norm(x):
         x = re.sub(r"[^a-z0-9 ]+", " ", (x or "").lower())
-        x = re.sub(r"^(the|a|an|le|la|les|el|il|der|die|das)\s+", "", x)
+        if strip_articles:
+            x = re.sub(r"^(the|a|an|le|la|les|el|il|der|die|das)\s+", "", x)
         return re.sub(r"\s+", " ", x).strip()
     na, nb = norm(a), norm(b)
     if not na or not nb:
@@ -72,6 +81,19 @@ def _key_from_dotenv() -> str | None:
             if k.strip() == "TMDB_API_KEY":
                 return v.strip().strip("\"'") or None
     return None
+
+
+def _page_years(page: str, box: dict) -> list[int]:
+    """Release years for a candidate article, from its disambiguator and its
+    infobox. A film that premiered at a festival one year and opened the next
+    legitimately has two, and either may be the one the watchlist recorded."""
+    out = []
+    m = re.search(r"\((\d{4})\s+film\)", page)
+    if m:
+        out.append(int(m.group(1)))
+    out += [int(y) for y in re.findall(r"\b(?:19|20)\d{2}\b",
+                                      box.get("released") or "")]
+    return sorted(set(out))
 
 
 class Client:
@@ -209,6 +231,41 @@ class Client:
         text = pages[0]["revisions"][0]["slots"]["main"]["content"]
         return parse_infobox(text)
 
+    # --- Wikipedia search (only when Wikidata could not find the film) ---
+    def find_wikipedia_page(self, title: str, year: int | None) -> str | None:
+        """Find the en.wikipedia article for a film, verified on year.
+
+        Wikidata's wbsearchentities matches entity *labels*, which is hopeless
+        for a common word. Searching it for "Obsession" returns a Star Trek
+        short story, a video game, a pornographic actress and an album before
+        any film at all, and the one we want is nowhere in the first twelve --
+        so step 1 sees no production companies and step 2 sees no budget, for a
+        film whose Wikipedia article states both. Wikipedia's own full-text
+        search finds "Obsession (2025 film)" first, because the disambiguator
+        it needs is in the page title.
+
+        The year check is kept as strict as everywhere else: a page whose year
+        cannot be established is rejected rather than guessed at.
+        """
+        res = self._get(WP_API, {
+            "action": "query", "list": "search",
+            "srsearch": f"{title} {year} film" if year else f"{title} film",
+            "srlimit": 8, "format": "json", "formatversion": "2",
+        }, f"wpsearch::{title}::{year}")
+        for hit in res.get("query", {}).get("search", []):
+            page = hit["title"]
+            if title_sim(title, re.sub(r"\s*\(.*?\)\s*$", "", page)) < 0.85:
+                continue
+            box = self.infobox(page)
+            if not box:
+                continue                     # not an {{Infobox film}} article
+            if year is not None:
+                yrs = _page_years(page, box)
+                if not yrs or min(abs(year - y) for y in yrs) > 1:
+                    continue
+            return page
+        return None
+
     # --- TMDB (optional) -------------------------------------------------
     def tmdb(self, title: str, year: int | None) -> dict | None:
         if not self.tmdb_key:
@@ -225,12 +282,26 @@ class Client:
                 continue
             if year and not ry:
                 continue
-            sim = max(title_sim(title, h.get("title")),
-                      title_sim(title, h.get("original_title")))
-            if sim < 0.85:
+            loose = max(title_sim(title, h.get("title")),
+                        title_sim(title, h.get("original_title")))
+            if loose < 0.85:
                 continue
-            score = sim * 10 + (5 if year and ry == year else 0)
-            score += min(h.get("popularity", 0), 5) / 100
+            strict = max(title_sim(title, h.get("title"), strip_articles=False),
+                         title_sim(title, h.get("original_title"),
+                                   strip_articles=False))
+            # A year disagreement of one is routine -- a festival premiere and
+            # a theatrical release straddle new year constantly, and Letterboxd
+            # records the first while TMDB records the primary. It must not be
+            # worth more than the title, or an exact-year match on the wrong
+            # film wins: *Obsession* (TIFF 2025, released 2026) lost to an
+            # unrelated *The Obsession* from 2025 on exactly that trade.
+            score = strict * 10 + loose * 2
+            if year and ry is not None:
+                score += 3 if ry == year else 1.5
+            # Popularity only separates candidates the title and year already
+            # allow, but it has to be able to: the wanted film is the one
+            # someone put on a watchlist, not a same-named obscurity.
+            score += math.log10(1 + max(h.get("popularity", 0), 0))
             if score > best_score:
                 best, best_score = h, score
         if best is None:

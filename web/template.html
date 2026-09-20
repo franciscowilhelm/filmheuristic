@@ -327,7 +327,7 @@ function renderDecades() {
     const n = counts[d.decade] || 0;
     return `<tr class="${d.with_budget ? "" : "empty"}">
       <td>${d.decade}s</td>
-      <td>${d.with_budget ? usd(d.median) : "—"}</td>
+      <td>${d.with_budget ? usd(d.median) + (d.median_source ? " †" : "") : "—"}</td>
       <td>${d.with_budget ? usd(thr) : "—"}</td>
       <td>${d.with_budget ? usd(thr * inflation(mid)) : "—"}</td>
       <td>${d.with_budget}/${d.sampled}</td>
@@ -338,7 +338,8 @@ function renderDecades() {
         <th>Threshold, today</th><th>Budgets sampled</th><th>Films here</th></tr>
     ${body}`;
   document.getElementById("decade-caveats").innerHTML =
-    (DATA.decades.caveats || []).map(c => `<li>${esc(c)}</li>`).join("");
+    (DATA.decades.caveats || []).map(c =>
+      `<li>${/carried forward/.test(c) ? "† " : ""}${esc(c)}</li>`).join("");
 }
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,

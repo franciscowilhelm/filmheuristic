@@ -54,6 +54,16 @@ MAJOR_COMPANIES = [
 ]
 
 DECADES = [1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]
+
+# The 2020s median measures below the 2010s, which cannot be a real fall in
+# what a studio film costs. The decade is incomplete, COVID-era slates sit in
+# the middle of it, and TMDB has no budget yet for a good share of 2025-26
+# titles (216 of 240 sampled, against 240 of 240 for the 2010s). Some genuine
+# pullback is in there -- streaming took the mid-budget slate -- but not a
+# third. Rather than let that artifact set the line for every recent film, the
+# 2010s figure is carried forward and the two decades share one baseline. The
+# measured value is kept alongside as median_measured, so nothing is lost.
+CARRY_FORWARD = {2020: 2010}
 PAGES_PER_DECADE = 12          # 20 results a page; TMDB caps discover at 500
 MIN_BUDGET = 10_000            # placeholder values ($1, $178) are not budgets
 
@@ -174,6 +184,22 @@ def main() -> int:
         print(f"{d}s: {len(vals):>4}/{len(film_ids):>4} budgets, "
               f"median ${rows[-1]['median']/1e6:.1f}M", file=sys.stderr)
 
+    by = {r["decade"]: r for r in rows}
+    carried = []
+    for target, src in CARRY_FORWARD.items():
+        if by.get(target) and by.get(src) and by[src]["median"]:
+            by[target]["median_measured"] = by[target]["median"]
+            by[target]["median"] = by[src]["median"]
+            by[target]["median_source"] = f"carried forward from the {src}s"
+            carried.append(
+                f"The {target}s median is the {src}s figure carried forward. "
+                f"It measured ${by[target]['median_measured']/1e6:.0f}M, below "
+                f"the {src}s, which reflects an incomplete decade and missing "
+                f"budgets for the newest films more than it reflects cost.")
+            print(f"{target}s: median carried forward from {src}s "
+                  f"(${by[target]['median']/1e6:.1f}M, measured "
+                  f"${by[target]['median_measured']/1e6:.1f}M)", file=sys.stderr)
+
     doc = {
         "source": "TMDB",
         "generated": time.strftime("%Y-%m-%d"),
@@ -187,6 +213,7 @@ def main() -> int:
             "pickup can enter the sample.",
             f"Sampled up to {PAGES_PER_DECADE * 20} films per decade by TMDB "
             "popularity, which skews towards films still watched today.",
+            *carried,
         ],
         "companies": companies,
         "decades": rows,
