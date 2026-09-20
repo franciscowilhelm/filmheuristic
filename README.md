@@ -94,6 +94,80 @@ One row per film in `out/*.csv`. The columns that matter when checking a verdict
 sources disagree across it, and `low` when no production companies were found or the
 verdict rests on the no-budget default. Low-confidence rows are the ones worth eyeballing.
 
+## Threshold explorer
+
+The $35M in step 2 is the one number in the rule that was picked rather than
+derived. `web/index.html` is a single self-contained page for pushing it around
+and watching the watchlist re-sort as it moves. Open it directly — no server:
+
+```sh
+uv run python web/build.py && open web/index.html
+```
+
+`build.py` bakes the CSVs in `out/`, the decade table below, and the inflation
+factors read straight out of `filmheuristic.budget` into the page, so it cannot
+drift from the classifier. Re-run it after a new classification run. Step 1 is
+not adjustable: a major studio credit is a fact about the film, not a dial.
+
+Two ways to set the line:
+
+**Flat, in today's money** — the rule exactly as written. At $35M the page
+reproduces the committed verdicts film for film; move the slider and the rows
+that change side are tagged with the verdict they used to have.
+
+**Per decade** — the line becomes a *share of what a major-studio film actually
+cost in that decade*, so it tracks the era instead of being CPI-inflated back
+from one present-day figure. The slider sets the share; it starts at 40%, which
+is roughly what $35M is of a median studio film today.
+
+### Where the decade figures come from
+
+`scripts/decade_budgets.py` asks TMDB for US films credited to a major studio's
+own production company (the step 1 list, resolved to TMDB company IDs), takes
+the reported budgets and reports the median per decade, in the money of the
+time. Regenerate with:
+
+```sh
+uv run python scripts/decade_budgets.py -o web/decade_budgets.json
+```
+
+Published series were the obvious alternative and turned out not to be usable:
+the MPAA's average negative cost is an average rather than a median, stops in
+2007, and exists only as figures quoted in news stories.
+
+| decade | median major budget | budgets found |
+| --- | --- | --- |
+| 1930s | $0.7M | 90/240 |
+| 1940s | $1.4M | 102/240 |
+| 1950s | $2.0M | 117/240 |
+| 1960s | $4.0M | 132/240 |
+| 1970s | $4.4M | 189/240 |
+| 1980s | $15.0M | 232/240 |
+| 1990s | $45.0M | 235/240 |
+| 2000s | $85.0M | 240/240 |
+| 2010s | $126.0M | 240/240 |
+| 2020s | $90.0M | 216/240 |
+
+Read it with its biases in view, all three of which are recorded in
+`web/decade_budgets.json`: TMDB reports a budget for a minority of older films
+and the ones it reports skew large and well known; its company credits mix
+production and distribution, which is exactly the leak step 1 avoids by reading
+Wikipedia's `|studio=` field; and the sample is TMDB's most popular 240 films
+per decade, which favours films still watched today. The pre-1980 rows in
+particular rest on well under half the sample having a budget at all.
+
+What the table shows regardless of the noise is that studio budgets have risen
+far faster than consumer prices. Between the 1980s and the 2010s the median
+major-studio budget grows about eightfold, while the rule's inflation factors
+imply about 2.3x over the same span. Holding the line at $35M in today's money
+is therefore a *stricter* test for recent films than for old ones: on the decade
+basis the 1980s line lands near $18M in today's money and the 2010s line near
+$65M. Whether that is a bug depends on what the threshold is for. If it marks
+"expensive for its moment", the decade basis is closer; if it marks "the kind of
+money that buys a film an audience by force", the flat line may be the honest
+one. The page exists so the choice can be made by looking rather than by
+argument.
+
 ## Data sources
 
 Three sources, each used for what it is actually good at. The ordering is not arbitrary —
@@ -144,6 +218,11 @@ for an unreleased blockbuster, so two cases are separated out:
 - **Older films have thinner data.** Budget coverage on Wikipedia and TMDB falls off
   before the 1980s, and the inflation multipliers are rough by construction. Expect more
   low-confidence A verdicts the further back the watchlist goes.
+- **Inflation is consumer-price inflation, which film budgets have outrun.**
+  The factors in `budget.py` imply a 1980s film cost 2.3x less than a 2010s one;
+  the median major-studio budgets in [Threshold explorer](#threshold-explorer)
+  put the gap nearer 8x. A single threshold in today's money is therefore not
+  era-neutral, whatever value it is set to.
 - **Foreign-currency budgets are converted at present-day rates**, not the rate at the
   time of production. The rule's own text calls a rough conversion sufficient.
 - **The studio list is a judgment call in places.** Touchstone, Hollywood Pictures and
@@ -161,6 +240,12 @@ src/filmheuristic/
   sources.py   Wikidata / Wikipedia / TMDB lookup, caching, rate-limit backoff
   classify.py  the rule
   cli.py       CSV in, CSV out
+scripts/
+  decade_budgets.py   median major-studio budget per decade, from TMDB
+web/
+  template.html       the threshold explorer's markup and logic
+  build.py            bakes out/*.csv and the decade table into index.html
+  index.html          the built page (generated, committed)
 out/           classification results (committed)
 data/          Letterboxd export and API cache (not committed)
 ```
@@ -180,4 +265,5 @@ and [CC0](https://creativecommons.org/publicdomain/zero/1.0/) respectively.
 
 TMDB's terms restrict bulk storage and redistribution of their data. `data/cache.json` is
 a local request cache and is not committed; the CSVs in `out/` contain derived
-classifications for a personal watchlist, not a TMDB data dump.
+classifications for a personal watchlist, and `web/decade_budgets.json` holds ten
+summary statistics, not a TMDB data dump.

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threshold Explorer</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --panel: #fff; --ink: #1a1a1a; --dim: #6b6b6b;
+    --line: #e2ded7; --h: #b4452e; --a: #2f6f5e; --q: #8a8a8a;
+    --flip: #c98a00; --accent: #1a1a1a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14141a; --panel: #1c1c24; --ink: #ece9e4; --dim: #9a968f;
+      --line: #2e2e3a; --h: #e07a5f; --a: #6fbfa5; --q: #8a8a95;
+      --flip: #e5b95c; --accent: #ece9e4;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 16px 96px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+       color: var(--dim); margin: 0 0 12px; font-weight: 600; }
+  p.lede { color: var(--dim); margin: 0 0 28px; max-width: 62ch; }
+  a { color: inherit; }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 10px; padding: 18px 20px; margin-bottom: 20px; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px;
+                color: var(--dim); }
+  select, button { font: inherit; color: var(--ink); background: var(--bg);
+                   border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--bg);
+                                border-color: var(--accent); }
+  .modes { display: inline-flex; gap: 6px; }
+  .slider { margin-top: 18px; }
+  .slider .val { font-family: var(--mono); font-size: 22px; }
+  .slider .note { color: var(--dim); font-size: 13px; }
+  input[type=range] { width: 100%; margin: 10px 0 0; accent-color: var(--h); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+           gap: 14px; }
+  .stat .n { font-family: var(--mono); font-size: 23px; line-height: 1.2; }
+  .stat .k { font-size: 12px; color: var(--dim); text-transform: uppercase;
+             letter-spacing: 0.06em; }
+  .films { border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+           background: var(--panel); }
+  .film { display: grid; grid-template-columns: 26px 1fr auto auto;
+          gap: 12px; align-items: baseline; padding: 9px 16px;
+          border-top: 1px solid var(--line); }
+  .film:first-child { border-top: none; }
+  .badge { font-family: var(--mono); font-weight: 700; }
+  .badge.H { color: var(--h); } .badge.A { color: var(--a); } .badge.Q { color: var(--q); }
+  .title { min-width: 0; }
+  .title .yr { color: var(--dim); }
+  .title .why { display: block; font-size: 12.5px; color: var(--dim); }
+  .num { font-family: var(--mono); font-size: 13.5px; text-align: right;
+         white-space: nowrap; }
+  .num .sub { display: block; color: var(--dim); font-size: 11.5px; }
+  .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 999px;
+         padding: 1px 7px; color: var(--dim); white-space: nowrap; }
+  .tag.flip { color: var(--flip); border-color: var(--flip); }
+  .cut { display: flex; align-items: center; gap: 12px; padding: 7px 16px;
+         background: color-mix(in srgb, var(--h) 12%, transparent);
+         border-top: 1px dashed var(--h); border-bottom: 1px dashed var(--h);
+         font-size: 12.5px; color: var(--dim); font-family: var(--mono); }
+  table.decades { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.decades th { text-align: right; font-weight: 600; color: var(--dim);
+                     font-size: 11.5px; text-transform: uppercase;
+                     letter-spacing: 0.05em; padding: 0 0 6px; }
+  table.decades th:first-child, table.decades td:first-child { text-align: left; }
+  table.decades td { padding: 5px 0; border-top: 1px solid var(--line);
+                     font-family: var(--mono); text-align: right; }
+  table.decades tr.empty td { color: var(--dim); }
+  .caveats { font-size: 12.5px; color: var(--dim); margin: 14px 0 0; padding-left: 18px; }
+  .caveats li { margin-bottom: 4px; }
+  footer { margin-top: 36px; font-size: 12.5px; color: var(--dim); }
+  @media (max-width: 620px) {
+    .film { grid-template-columns: 22px 1fr auto; }
+    .film .tagcell { grid-column: 2 / -1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Threshold explorer</h1>
+  <p class="lede">
+    Step 1 of the rule (is a major studio behind it?) is a yes/no question about
+    credits, and nothing here can move it. Step 2 is a number, and the number is
+    a guess. Move it and watch which films change sides.
+  </p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="field">Films
+        <select id="dataset"></select>
+      </label>
+      <label class="field">Step 2 threshold
+        <span class="modes">
+          <button id="mode-flat" aria-pressed="true">Flat, in today's money</button>
+          <button id="mode-decade" aria-pressed="false">Per decade</button>
+        </span>
+      </label>
+    </div>
+
+    <div class="slider" id="flat-slider">
+      <div><span class="val" id="flat-val"></span>
+        <span class="note">in today's money, for every film</span></div>
+      <input type="range" id="flat-range" min="1" max="150" step="1">
+      <div class="note" id="flat-note"></div>
+    </div>
+
+    <div class="slider" id="decade-slider" hidden>
+      <div><span class="val" id="decade-val"></span>
+        <span class="note" id="decade-note"></span></div>
+      <input type="range" id="decade-range" min="5" max="150" step="5">
+      <div class="note">
+        A film is H when its budget passes that share of what a major-studio
+        film cost in its own decade &mdash; so the line moves with the era
+        instead of being inflated from one present-day number.
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Where that leaves the watchlist</h2>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel" id="decade-panel" hidden>
+    <h2>Major-studio budgets by decade</h2>
+    <table class="decades" id="decade-table"></table>
+    <ul class="caveats" id="decade-caveats"></ul>
+  </div>
+
+  <h2 id="list-head"></h2>
+  <div class="films" id="films"></div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const M = 1e6;
+
+/* Inflation, as filmheuristic.budget defines it: [[first_year, factor], ...] */
+function inflation(year) {
+  if (year == null) return 1;
+  let f = DATA.inflation[0][1];
+  for (const [y, v] of DATA.inflation) { if (year >= y) f = v; else break; }
+  return f;
+}
+
+const decadeRows = DATA.decades ? DATA.decades.decades.filter(d => d.with_budget > 0) : [];
+const medianFor = year => {
+  if (!decadeRows.length || year == null) return null;
+  const d = Math.floor(year / 10) * 10;
+  let best = decadeRows[0];
+  for (const r of decadeRows) if (Math.abs(r.decade - d) < Math.abs(best.decade - d)) best = r;
+  return best;
+};
+
+const state = {
+  dataset: DATA.datasets[0] ? DATA.datasets[0].id : null,
+  mode: "flat",
+  flat: DATA.threshold_default,
+  share: 0.5,
+};
+
+/* The per-decade slider starts where it reproduces today's rule: the share of a
+   present-day major-studio budget that $35M in today's money already is. */
+if (decadeRows.length) {
+  const now = medianFor(new Date().getFullYear() - 1);
+  if (now && now.median) {
+    const k = DATA.threshold_default / (now.median * inflation(now.decade + 5));
+    state.share = Math.min(1.5, Math.max(0.05, Math.round(k * 20) / 20));
+  }
+}
+
+/* Threshold that applies to one film, always expressed in today's money so it
+   can be compared with budget_usd_today directly. */
+function thresholdFor(film) {
+  if (state.mode === "flat") return state.flat;
+  const row = medianFor(film.year);
+  if (!row) return state.flat;
+  return row.median * state.share * inflation(film.year);
+}
+
+function verdictFor(film) {
+  if (film.verdict === "?") return { v: "?", why: film.reason, step: "none" };
+  if (film.majors) return { v: "H", why: film.reason, step: "1" };
+  const b = film.budget_usd_today;
+  if (b == null)
+    return { v: "A", why: "no major studio; no budget figure found (rule: treat as A)",
+             step: "none" };
+  const t = thresholdFor(film);
+  const over = b > t;
+  const why = `no major studio; budget ${usd(b)} in today's money, `
+            + `${over ? "above" : "below"} ${usd(t)}`;
+  return { v: over ? "H" : "A", why, step: "2", threshold: t,
+           margin: Math.abs(b - t) / t };
+}
+
+const usd = v => v == null ? "—"
+  : v >= 1e9 ? "$" + (v / 1e9).toFixed(2) + "B"
+  : v >= 1e6 ? "$" + (v / M).toFixed(v >= 100 * M ? 0 : 1) + "M"
+  : "$" + Math.round(v / 1e3) + "k";
+
+function render() {
+  const set = DATA.datasets.find(d => d.id === state.dataset);
+  const films = set ? set.rows : [];
+  const scored = films.map(f => ({ f, r: verdictFor(f) }));
+
+  /* Sorted by budget as a multiple of the line that applies to that film, so
+     the cut stays one real line through the list even in per-decade mode,
+     where every film is measured against a different number. In flat mode the
+     divisor is constant and this is just budget order. */
+  const withBudget = scored.filter(x => x.f.budget_usd_today != null && x.r.step !== "none");
+  const step1 = scored.filter(x => x.r.step === "1");
+  const nothing = scored.filter(x => x.r.step === "none");
+  for (const x of withBudget) x.ratio = x.f.budget_usd_today / x.r.threshold;
+  withBudget.sort((a, b) => b.ratio - a.ratio);
+  step1.sort((a, b) => (b.f.year || 0) - (a.f.year || 0));
+  nothing.sort((a, b) => (b.f.year || 0) - (a.f.year || 0));
+
+  const H = scored.filter(x => x.r.v === "H").length;
+  const A = scored.filter(x => x.r.v === "A").length;
+  const Q = scored.filter(x => x.r.v === "?").length;
+  const nonUsA = scored.filter(x => x.r.v === "A" && x.f.non_us).length;
+  const flips = scored.filter(x => x.f.verdict !== "?" && x.r.v !== x.f.verdict);
+  const owed = H * 2;
+
+  document.getElementById("stats").innerHTML = [
+    stat(H, "Hollywood"),
+    stat(A, "Alternative"),
+    stat(A ? (H / A).toFixed(2) : "—", "H per A"),
+    stat(owed + " / " + A, "A films owed / on hand"),
+    stat(nonUsA, "non-US A films"),
+    stat(flips.length, "changed verdict"),
+    Q ? stat(Q, "unresolved") : "",
+  ].join("");
+
+  const head = document.getElementById("list-head");
+  head.textContent = state.mode === "flat"
+    ? `Sorted by budget in today's money — the line sits at ${usd(state.flat)}`
+    : `Sorted by budget as a multiple of that film's own decade line`;
+
+  const parts = [];
+  let cutDrawn = false;
+  for (const x of withBudget) {
+    if (!cutDrawn && x.r.v === "A") {
+      cutDrawn = true;
+      parts.push(`<div class="cut">${state.mode === "flat"
+        ? "the line — " + usd(state.flat) + " in today's money"
+        : "the line — above it, a film outspent its own decade's threshold"}</div>`);
+    }
+    parts.push(filmRow(x));
+  }
+  if (step1.length) {
+    parts.push(`<div class="cut">decided at step 1 — a major studio made or financed these</div>`);
+    parts.push(...step1.map(filmRow));
+  }
+  if (nothing.length) {
+    parts.push(`<div class="cut">step 2 had nothing to weigh — unaffected by the slider</div>`);
+    parts.push(...nothing.map(filmRow));
+  }
+  document.getElementById("films").innerHTML = parts.join("");
+
+  document.getElementById("footer").innerHTML = set
+    ? `${films.length} films from <code>${set.file}</code>. `
+      + `Rebuild with <code>uv run python web/build.py</code> after a new run.`
+    : "";
+  renderDecades();
+  if (typeof history !== "undefined" && history.replaceState) writeHash();
+}
+
+const stat = (n, k) => `<div class="stat"><div class="n">${n}</div><div class="k">${k}</div></div>`;
+
+function filmRow(x) {
+  const { f, r } = x;
+  const flipped = f.verdict !== "?" && r.v !== f.verdict;
+  const tags = [];
+  if (flipped) tags.push(`<span class="tag flip">was ${f.verdict}</span>`);
+  if (r.step === "2" && r.margin != null && r.margin < 0.25)
+    tags.push(`<span class="tag">near the line</span>`);
+  if (f.straddles) tags.push(`<span class="tag">sources disagree</span>`);
+  if (f.non_us) tags.push(`<span class="tag">non-US</span>`);
+  const link = f.wikipedia || f.tmdb;
+  const title = link
+    ? `<a href="${f.wikipedia || f.tmdb}" target="_blank" rel="noopener">${esc(f.title)}</a>`
+    : esc(f.title);
+  const b = f.budget_usd_today;
+  const nominal = b == null ? null : b / inflation(f.year);
+  const sub = b == null ? ""
+    : state.mode === "decade" && x.ratio != null
+      ? `${x.ratio.toFixed(2)}× its line`
+      : `${usd(nominal)} then`;
+  return `<div class="film">
+    <div class="badge ${r.v === "?" ? "Q" : r.v}">${r.v}</div>
+    <div class="title">${title} <span class="yr">${f.year || ""}</span>
+      <span class="why">${esc(r.why)}</span></div>
+    <div class="num">${usd(b)}${sub ? `<span class="sub">${sub}</span>` : ""}</div>
+    <div class="num tagcell">${tags.join(" ")}</div>
+  </div>`;
+}
+
+function renderDecades() {
+  const panel = document.getElementById("decade-panel");
+  if (state.mode !== "decade" || !DATA.decades) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const set = DATA.datasets.find(d => d.id === state.dataset);
+  const counts = {};
+  for (const f of (set ? set.rows : []))
+    if (f.year != null) counts[Math.floor(f.year / 10) * 10] =
+      (counts[Math.floor(f.year / 10) * 10] || 0) + 1;
+
+  const body = DATA.decades.decades.map(d => {
+    const mid = d.decade + 5;
+    const thr = d.median * state.share;
+    const n = counts[d.decade] || 0;
+    return `<tr class="${d.with_budget ? "" : "empty"}">
+      <td>${d.decade}s</td>
+      <td>${d.with_budget ? usd(d.median) : "—"}</td>
+      <td>${d.with_budget ? usd(thr) : "—"}</td>
+      <td>${d.with_budget ? usd(thr * inflation(mid)) : "—"}</td>
+      <td>${d.with_budget}/${d.sampled}</td>
+      <td>${n || "—"}</td></tr>`;
+  }).join("");
+  document.getElementById("decade-table").innerHTML = `
+    <tr><th>Decade</th><th>Median major budget</th><th>Threshold, then</th>
+        <th>Threshold, today</th><th>Budgets sampled</th><th>Films here</th></tr>
+    ${body}`;
+  document.getElementById("decade-caveats").innerHTML =
+    (DATA.decades.caveats || []).map(c => `<li>${esc(c)}</li>`).join("");
+}
+
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* --- wiring --------------------------------------------------------- */
+const sel = document.getElementById("dataset");
+sel.innerHTML = DATA.datasets.map(d =>
+  `<option value="${d.id}">${esc(d.label)} (${d.rows.length})</option>`).join("");
+sel.onchange = () => { state.dataset = sel.value; render(); };
+
+const flatRange = document.getElementById("flat-range");
+flatRange.value = Math.round(DATA.threshold_default / M);
+flatRange.oninput = () => {
+  state.flat = Number(flatRange.value) * M;
+  document.getElementById("flat-val").textContent = usd(state.flat);
+  document.getElementById("flat-note").textContent =
+    `the rule as written uses ${usd(DATA.threshold_default)}`
+    + ` — about ${usd(state.flat / inflation(1985))} for a 1985 film`;
+  render();
+};
+
+const decRange = document.getElementById("decade-range");
+decRange.value = Math.round(state.share * 100);
+decRange.oninput = () => {
+  state.share = Number(decRange.value) / 100;
+  document.getElementById("decade-val").textContent =
+    (state.share * 100).toFixed(0) + "%";
+  const now = medianFor(new Date().getFullYear() - 1);
+  document.getElementById("decade-note").textContent =
+    now ? `of the decade's median major-studio budget — ${usd(now.median * state.share)} in the ${now.decade}s`
+        : "of the decade's median major-studio budget";
+  render();
+};
+
+/* State lives in the URL fragment so a particular setting of the line can be
+   sent to someone as a link. */
+function readHash() {
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (q.has("d") && DATA.datasets.some(s => s.id === q.get("d"))) {
+    state.dataset = q.get("d");
+    sel.value = state.dataset;
+  }
+  if (q.has("t")) {
+    state.flat = Math.max(1, Math.min(150, Number(q.get("t")))) * M;
+    flatRange.value = state.flat / M;
+  }
+  if (q.has("k")) {
+    state.share = Math.max(0.05, Math.min(1.5, Number(q.get("k")) / 100));
+    decRange.value = Math.round(state.share * 100);
+  }
+  return q.get("mode") === "decade" && decadeRows.length ? "decade" : "flat";
+}
+
+function writeHash() {
+  const q = new URLSearchParams({
+    d: state.dataset, mode: state.mode,
+    ...(state.mode === "flat" ? { t: String(state.flat / M) }
+                              : { k: String(Math.round(state.share * 100)) }),
+  });
+  history.replaceState(null, "", "#" + q);
+}
+
+function setMode(m) {
+  state.mode = m;
+  document.getElementById("mode-flat").setAttribute("aria-pressed", m === "flat");
+  document.getElementById("mode-decade").setAttribute("aria-pressed", m === "decade");
+  document.getElementById("flat-slider").hidden = m !== "flat";
+  document.getElementById("decade-slider").hidden = m !== "decade";
+  render();
+}
+document.getElementById("mode-flat").onclick = () => setMode("flat");
+const decBtn = document.getElementById("mode-decade");
+if (!decadeRows.length) {
+  decBtn.disabled = true;
+  decBtn.title = "run scripts/decade_budgets.py to enable this";
+} else {
+  decBtn.onclick = () => setMode("decade");
+}
+
+const initialMode = readHash();
+flatRange.oninput();
+decRange.oninput();
+setMode(initialMode);
+</script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+{
+  "source": "TMDB",
+  "generated": "2026-09-20",
+  "method": "median of TMDB-reported production budgets for US films credited to a major studio's own production company, nominal dollars of the release decade",
+  "caveats": [
+    "TMDB reports a budget for a minority of films and those it reports skew large and well known; this is a median of reported budgets.",
+    "TMDB company credits mix production and distribution, so a studio pickup can enter the sample.",
+    "Sampled up to 240 films per decade by TMDB popularity, which skews towards films still watched today."
+  ],
+  "companies": {
+    "Walt Disney Pictures": 2,
+    "Touchstone Pictures": 9195,
+    "Hollywood Pictures": 915,
+    "Pixar": 3,
+    "Marvel Studios": 420,
+    "Lucasfilm Ltd.": 1,
+    "20th Century Fox": 25,
+    "20th Century Studios": 127928,
+    "Universal Pictures": 33,
+    "Illumination": 6704,
+    "DreamWorks Animation": 521,
+    "Warner Bros. Pictures": 174,
+    "New Line Cinema": 12,
+    "Paramount Pictures": 4,
+    "Columbia Pictures": 5,
+    "TriStar Pictures": 559,
+    "Sony Pictures": 34,
+    "Metro-Goldwyn-Mayer": 21,
+    "United Artists": 60,
+    "RKO Radio Pictures": 6
+  },
+  "decades": [
+    {
+      "decade": 1930,
+      "sampled": 240,
+      "with_budget": 90,
+      "median": 697032,
+      "p25": 364688,
+      "p75": 1294786,
+      "mean": 1047495
+    },
+    {
+      "decade": 1940,
+      "sampled": 240,
+      "with_budget": 102,
+      "median": 1426500,
+      "p25": 860500,
+      "p75": 2051000,
+      "mean": 1590744
+    },
+    {
+      "decade": 1950,
+      "sampled": 240,
+      "with_budget": 117,
+      "median": 2000000,
+      "p25": 1271000,
+      "p75": 3115000,
+      "mean": 2725609
+    },
+    {
+      "decade": 1960,
+      "sampled": 240,
+      "with_budget": 132,
+      "median": 3979500,
+      "p25": 2000000,
+      "p75": 6425000,
+      "mean": 5695261
+    },
+    {
+      "decade": 1970,
+      "sampled": 240,
+      "with_budget": 189,
+      "median": 4400000,
+      "p25": 2600000,
+      "p75": 7000000,
+      "mean": 6110660
+    },
+    {
+      "decade": 1980,
+      "sampled": 240,
+      "with_budget": 232,
+      "median": 15000000,
+      "p25": 8500000,
+      "p75": 22000000,
+      "mean": 15974138
+    },
+    {
+      "decade": 1990,
+      "sampled": 240,
+      "with_budget": 235,
+      "median": 45000000,
+      "p25": 25000000,
+      "p75": 65000000,
+      "mean": 49560426
+    },
+    {
+      "decade": 2000,
+      "sampled": 240,
+      "with_budget": 240,
+      "median": 85000000,
+      "p25": 50750000,
+      "p75": 126375000,
+      "mean": 91239583
+    },
+    {
+      "decade": 2010,
+      "sampled": 240,
+      "with_budget": 240,
+      "median": 126000000,
+      "p25": 68750000,
+      "p75": 176500000,
+      "mean": 128393750
+    },
+    {
+      "decade": 2020,
+      "sampled": 240,
+      "with_budget": 216,
+      "median": 90000000,
+      "p25": 45000000,
+      "p75": 165750000,
+      "mean": 112974074
+    }
+  ]
+}

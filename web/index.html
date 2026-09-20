@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threshold Explorer</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --panel: #fff; --ink: #1a1a1a; --dim: #6b6b6b;
+    --line: #e2ded7; --h: #b4452e; --a: #2f6f5e; --q: #8a8a8a;
+    --flip: #c98a00; --accent: #1a1a1a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14141a; --panel: #1c1c24; --ink: #ece9e4; --dim: #9a968f;
+      --line: #2e2e3a; --h: #e07a5f; --a: #6fbfa5; --q: #8a8a95;
+      --flip: #e5b95c; --accent: #ece9e4;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 16px 96px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+       color: var(--dim); margin: 0 0 12px; font-weight: 600; }
+  p.lede { color: var(--dim); margin: 0 0 28px; max-width: 62ch; }
+  a { color: inherit; }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 10px; padding: 18px 20px; margin-bottom: 20px; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px;
+                color: var(--dim); }
+  select, button { font: inherit; color: var(--ink); background: var(--bg);
+                   border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--bg);
+                                border-color: var(--accent); }
+  .modes { display: inline-flex; gap: 6px; }
+  .slider { margin-top: 18px; }
+  .slider .val { font-family: var(--mono); font-size: 22px; }
+  .slider .note { color: var(--dim); font-size: 13px; }
+  input[type=range] { width: 100%; margin: 10px 0 0; accent-color: var(--h); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+           gap: 14px; }
+  .stat .n { font-family: var(--mono); font-size: 23px; line-height: 1.2; }
+  .stat .k { font-size: 12px; color: var(--dim); text-transform: uppercase;
+             letter-spacing: 0.06em; }
+  .films { border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+           background: var(--panel); }
+  .film { display: grid; grid-template-columns: 26px 1fr auto auto;
+          gap: 12px; align-items: baseline; padding: 9px 16px;
+          border-top: 1px solid var(--line); }
+  .film:first-child { border-top: none; }
+  .badge { font-family: var(--mono); font-weight: 700; }
+  .badge.H { color: var(--h); } .badge.A { color: var(--a); } .badge.Q { color: var(--q); }
+  .title { min-width: 0; }
+  .title .yr { color: var(--dim); }
+  .title .why { display: block; font-size: 12.5px; color: var(--dim); }
+  .num { font-family: var(--mono); font-size: 13.5px; text-align: right;
+         white-space: nowrap; }
+  .num .sub { display: block; color: var(--dim); font-size: 11.5px; }
+  .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 999px;
+         padding: 1px 7px; color: var(--dim); white-space: nowrap; }
+  .tag.flip { color: var(--flip); border-color: var(--flip); }
+  .cut { display: flex; align-items: center; gap: 12px; padding: 7px 16px;
+         background: color-mix(in srgb, var(--h) 12%, transparent);
+         border-top: 1px dashed var(--h); border-bottom: 1px dashed var(--h);
+         font-size: 12.5px; color: var(--dim); font-family: var(--mono); }
+  table.decades { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.decades th { text-align: right; font-weight: 600; color: var(--dim);
+                     font-size: 11.5px; text-transform: uppercase;
+                     letter-spacing: 0.05em; padding: 0 0 6px; }
+  table.decades th:first-child, table.decades td:first-child { text-align: left; }
+  table.decades td { padding: 5px 0; border-top: 1px solid var(--line);
+                     font-family: var(--mono); text-align: right; }
+  table.decades tr.empty td { color: var(--dim); }
+  .caveats { font-size: 12.5px; color: var(--dim); margin: 14px 0 0; padding-left: 18px; }
+  .caveats li { margin-bottom: 4px; }
+  footer { margin-top: 36px; font-size: 12.5px; color: var(--dim); }
+  @media (max-width: 620px) {
+    .film { grid-template-columns: 22px 1fr auto; }
+    .film .tagcell { grid-column: 2 / -1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Threshold explorer</h1>
+  <p class="lede">
+    Step 1 of the rule (is a major studio behind it?) is a yes/no question about
+    credits, and nothing here can move it. Step 2 is a number, and the number is
+    a guess. Move it and watch which films change sides.
+  </p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="field">Films
+        <select id="dataset"></select>
+      </label>
+      <label class="field">Step 2 threshold
+        <span class="modes">
+          <button id="mode-flat" aria-pressed="true">Flat, in today's money</button>
+          <button id="mode-decade" aria-pressed="false">Per decade</button>
+        </span>
+      </label>
+    </div>
+
+    <div class="slider" id="flat-slider">
+      <div><span class="val" id="flat-val"></span>
+        <span class="note">in today's money, for every film</span></div>
+      <input type="range" id="flat-range" min="1" max="150" step="1">
+      <div class="note" id="flat-note"></div>
+    </div>
+
+    <div class="slider" id="decade-slider" hidden>
+      <div><span class="val" id="decade-val"></span>
+        <span class="note" id="decade-note"></span></div>
+      <input type="range" id="decade-range" min="5" max="150" step="5">
+      <div class="note">
+        A film is H when its budget passes that share of what a major-studio
+        film cost in its own decade &mdash; so the line moves with the era
+        instead of being inflated from one present-day number.
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Where that leaves the watchlist</h2>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel" id="decade-panel" hidden>
+    <h2>Major-studio budgets by decade</h2>
+    <table class="decades" id="decade-table"></table>
+    <ul class="caveats" id="decade-caveats"></ul>
+  </div>
+
+  <h2 id="list-head"></h2>
+  <div class="films" id="films"></div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script id="data" type="application/json">{"threshold_default":35000000,"inflation":[[1900,12.0],[1940,10.0],[1950,9.0],[1960,7.5],[1970,5.5],[1980,3.0],[1990,2.0],[2000,1.6],[2010,1.3],[2020,1.15],[2024,1.0]],"datasets":[{"id":"recent50","label":"50 most recent","file":"out/recent50.csv","rows":[{"title":"Dune: Part Three","verdict":"?","reason":"not yet released and no budget published; step 2 cannot be applied","confidence":"none","majors":"","countries":"United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Dune:_Part_Three","tmdb":"https://www.themoviedb.org/movie/1170608","year":2026,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"Werwulf","verdict":"H","reason":"major studio: Working Title Films (Universal)","confidence":"high","majors":"Universal","countries":"United States; United Kingdom","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Werwulf","tmdb":"https://www.themoviedb.org/movie/1421903","year":2026,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"The Further Mis-Adventures of Cliff Booth","verdict":"H","reason":"no major studio, but budget $200.0M in today's money, avg of 2 sources (> $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Further_Mis-Adventures_of_Cliff_Booth","tmdb":"https://www.themoviedb.org/movie/1457866","year":2026,"budget_usd_today":200000000.0,"budget_wikipedia_today":200000000.0,"budget_tmdb_today":200000000.0,"non_us":false,"straddles":false},{"title":"Digger","verdict":"H","reason":"no major studio, but budget $127.5M in today's money, avg of 2 sources (> $35M)","confidence":"high","majors":"","countries":"United States; United Kingdom; Mexico","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Digger_(2026_film)","tmdb":"https://www.themoviedb.org/movie/1248832","year":2026,"budget_usd_today":127500000.0,"budget_wikipedia_today":125000000.0,"budget_tmdb_today":130000000.0,"non_us":false,"straddles":false},{"title":"Minotaur","verdict":"?","reason":"not yet released and no budget published; step 2 cannot be applied","confidence":"none","majors":"","countries":"Latvia; France; Germany; Switzerland","budget_source":"","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/848700","year":2026,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Fjord","verdict":"A","reason":"no major studio; budget $4.8M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"Romania; Norway; France; Finland; Denmark; Sweden","budget_source":"tmdb","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/1401459","year":2026,"budget_usd_today":4750000.0,"budget_wikipedia_today":null,"budget_tmdb_today":4750000.0,"non_us":true,"straddles":false},{"title":"Tony","verdict":"A","reason":"no major studio; budget $15.0M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"United States of America; Canada","budget_source":"tmdb","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/1329016","year":2026,"budget_usd_today":15000000.0,"budget_wikipedia_today":null,"budget_tmdb_today":15000000.0,"non_us":false,"straddles":false},{"title":"Primetime","verdict":"?","reason":"not yet released and no budget published; step 2 cannot be applied","confidence":"none","majors":"","countries":"United States of America","budget_source":"","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/1375441","year":2026,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"The Debut","verdict":"?","reason":"not yet released and no budget published; step 2 cannot be applied","confidence":"none","majors":"","countries":"United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/The_Debut_(2026_film)","tmdb":"https://www.themoviedb.org/movie/1391239","year":2026,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"Bucking Fastard","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Bucking_Fastard","tmdb":"https://www.themoviedb.org/movie/1429713","year":2026,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"Possible Love","verdict":"?","reason":"not yet released and no budget published; step 2 cannot be applied","confidence":"none","majors":"","countries":"South Korea","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Possible_Love","tmdb":"https://www.themoviedb.org/movie/1483525","year":2026,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Adolescence","verdict":"?","reason":"no matching film found in any source","confidence":"none","majors":"","countries":"","budget_source":"","wikipedia":"","tmdb":"","year":2025,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":null,"straddles":false},{"title":"Caught Stealing","verdict":"H","reason":"major studio: Columbia Pictures (Sony)","confidence":"high","majors":"Sony","countries":"United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Caught_Stealing","tmdb":"https://www.themoviedb.org/movie/1245993","year":2025,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"If I Had Legs I'd Kick You","verdict":"A","reason":"no major studio; budget $1.5M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/If_I_Had_Legs_I'd_Kick_You","tmdb":"https://www.themoviedb.org/movie/1160360","year":2025,"budget_usd_today":1500000.0,"budget_wikipedia_today":null,"budget_tmdb_today":1500000.0,"non_us":false,"straddles":false},{"title":"Father Mother Sister Brother","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"United States; Ireland; France; Italy; Japan","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Father_Mother_Sister_Brother","tmdb":"https://www.themoviedb.org/movie/1159206","year":2025,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"The Last Viking","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Denmark; Sweden","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/The_Last_Viking_(2025_film)","tmdb":"https://www.themoviedb.org/movie/1295400","year":2025,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"No Other Choice","verdict":"A","reason":"no major studio; budget $12.4M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"South Korea","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/No_Other_Choice","tmdb":"https://www.themoviedb.org/movie/639988","year":2025,"budget_usd_today":12390000.0,"budget_wikipedia_today":12580000.0,"budget_tmdb_today":12200000.0,"non_us":true,"straddles":false},{"title":"Dhurandhar","verdict":"A","reason":"no major studio; budget $27.3M in today's money, avg of 2 sources (< $35M)","confidence":"medium","majors":"","countries":"India","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Dhurandhar","tmdb":"https://www.themoviedb.org/movie/1291608","year":2025,"budget_usd_today":27300000.0,"budget_wikipedia_today":30600000.0,"budget_tmdb_today":24000000.0,"non_us":true,"straddles":false},{"title":"The Furious","verdict":"A","reason":"no major studio; budget $20.0M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"Hong Kong","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Furious","tmdb":"https://www.themoviedb.org/movie/1280738","year":2025,"budget_usd_today":20000000.0,"budget_wikipedia_today":20000000.0,"budget_tmdb_today":20000000.0,"non_us":true,"straddles":false},{"title":"Obsession","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"","budget_source":"","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/1724944","year":2025,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":null,"straddles":false},{"title":"No Other Land","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Norway","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/No_Other_Land","tmdb":"https://www.themoviedb.org/movie/1232493","year":2024,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Challengers","verdict":"H","reason":"major studio: Metro-Goldwyn-Mayer (Amazon MGM)","confidence":"high","majors":"Amazon MGM","countries":"United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Challengers_(film)","tmdb":"https://www.themoviedb.org/movie/937287","year":2024,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"The Seed of the Sacred Fig","verdict":"A","reason":"no major studio; budget $3.0M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"Germany; France; Iran","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Seed_of_the_Sacred_Fig","tmdb":"https://www.themoviedb.org/movie/1278263","year":2024,"budget_usd_today":3000000.0,"budget_wikipedia_today":null,"budget_tmdb_today":3000000.0,"non_us":true,"straddles":false},{"title":"Chime","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Japan","budget_source":"","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/1219556","year":2024,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Monkey Man","verdict":"H","reason":"major studio: Universal Pictures (Universal)","confidence":"high","majors":"Universal","countries":"United States; Canada; Singapore; India","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Monkey_Man_(film)","tmdb":"https://www.themoviedb.org/movie/560016","year":2024,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"Nickel Boys","verdict":"A","reason":"no major studio; budget $23.2M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Nickel_Boys","tmdb":"https://www.themoviedb.org/movie/1028196","year":2024,"budget_usd_today":23200000.0,"budget_wikipedia_today":23200000.0,"budget_tmdb_today":23200000.0,"non_us":false,"straddles":false},{"title":"The Brutalist","verdict":"A","reason":"no major studio; budget $9.6M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"United States; United Kingdom","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Brutalist","tmdb":"https://www.themoviedb.org/movie/549509","year":2024,"budget_usd_today":9600000.0,"budget_wikipedia_today":9600000.0,"budget_tmdb_today":9600000.0,"non_us":false,"straddles":false},{"title":"Kafka","verdict":"?","reason":"no matching film found in any source","confidence":"none","majors":"","countries":"","budget_source":"","wikipedia":"","tmdb":"","year":2024,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":null,"straddles":false},{"title":"Infinity Pool","verdict":"A","reason":"no major studio; budget $5.2M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"Canada; Hungary; France","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/Infinity_Pool_(film)","tmdb":"https://www.themoviedb.org/movie/667216","year":2023,"budget_usd_today":5175000.0,"budget_wikipedia_today":null,"budget_tmdb_today":5175000.0,"non_us":true,"straddles":false},{"title":"The Wonderful Story of Henry Sugar","verdict":"A","reason":"no major studio; budget $4.6M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Wonderful_Story_of_Henry_Sugar_(film)","tmdb":"https://www.themoviedb.org/movie/923939","year":2023,"budget_usd_today":4600000.0,"budget_wikipedia_today":null,"budget_tmdb_today":4600000.0,"non_us":false,"straddles":false},{"title":"Priscilla","verdict":"A","reason":"no major studio; budget $23.0M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"Italy; United States of America","budget_source":"tmdb","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/1020006","year":2023,"budget_usd_today":23000000.0,"budget_wikipedia_today":null,"budget_tmdb_today":23000000.0,"non_us":false,"straddles":false},{"title":"The Taste of Things","verdict":"A","reason":"no major studio; budget $7.5M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"France","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Taste_of_Things","tmdb":"https://www.themoviedb.org/movie/964960","year":2023,"budget_usd_today":7475000.0,"budget_wikipedia_today":null,"budget_tmdb_today":7474999.999999999,"non_us":true,"straddles":false},{"title":"All of Us Strangers","verdict":"A","reason":"no major studio; budget $5.8M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"United Kingdom","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/All_of_Us_Strangers","tmdb":"https://www.themoviedb.org/movie/994108","year":2023,"budget_usd_today":5750000.0,"budget_wikipedia_today":null,"budget_tmdb_today":5750000.0,"non_us":true,"straddles":false},{"title":"Perfect Days","verdict":"A","reason":"no major studio; budget $16.1M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"Japan; Germany","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/Perfect_Days","tmdb":"https://www.themoviedb.org/movie/976893","year":2023,"budget_usd_today":16100000.0,"budget_wikipedia_today":null,"budget_tmdb_today":16099999.999999998,"non_us":true,"straddles":false},{"title":"Evil Does Not Exist","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Japan","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Evil_Does_Not_Exist","tmdb":"https://www.themoviedb.org/movie/1156125","year":2023,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Problemista","verdict":"A","reason":"no major studio; budget $13.8M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/Problemista","tmdb":"https://www.themoviedb.org/movie/852247","year":2023,"budget_usd_today":13800000.0,"budget_wikipedia_today":null,"budget_tmdb_today":13799999.999999998,"non_us":false,"straddles":false},{"title":"The Whale","verdict":"A","reason":"no major studio; budget $3.4M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Whale_(2022_film)","tmdb":"https://www.themoviedb.org/movie/785084","year":2022,"budget_usd_today":3450000.0,"budget_wikipedia_today":3449999.9999999995,"budget_tmdb_today":3449999.9999999995,"non_us":false,"straddles":false},{"title":"DAHMER - Monster: The Jeffrey Dahmer Story","verdict":"?","reason":"no matching film found in any source","confidence":"none","majors":"","countries":"","budget_source":"","wikipedia":"","tmdb":"","year":2022,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":null,"straddles":false},{"title":"Return to Seoul","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"France; Belgium; Germany; Cambodia; Qatar; South Korea; Romania","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Return_to_Seoul","tmdb":"https://www.themoviedb.org/movie/952701","year":2022,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"R.M.N.","verdict":"A","reason":"no major studio; budget $3.5M in today's money, wikipedia (< $35M)","confidence":"high","majors":"","countries":"Romania; France; Belgium","budget_source":"wikipedia","wikipedia":"https://en.wikipedia.org/wiki/R.M.N.","tmdb":"https://www.themoviedb.org/movie/919570","year":2022,"budget_usd_today":3477600.0,"budget_wikipedia_today":3477599.9999999995,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Blind Willow, Sleeping Woman","verdict":"A","reason":"no major studio; budget $7.9M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"France; Luxembourg; Canada; Netherlands","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/Blind_Willow,_Sleeping_Woman_(film)","tmdb":"https://www.themoviedb.org/movie/678299","year":2022,"budget_usd_today":7935000.0,"budget_wikipedia_today":null,"budget_tmdb_today":7934999.999999999,"non_us":true,"straddles":false},{"title":"We Own This City","verdict":"?","reason":"no matching film found in any source","confidence":"none","majors":"","countries":"","budget_source":"","wikipedia":"","tmdb":"","year":2022,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":null,"straddles":false},{"title":"The Eight Mountains","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"France; Italy; Belgium; United Kingdom","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/The_Eight_Mountains","tmdb":"https://www.themoviedb.org/movie/803700","year":2022,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Women Talking","verdict":"A","reason":"no major studio; budget $23.0M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Women_Talking_(film)","tmdb":"https://www.themoviedb.org/movie/777245","year":2022,"budget_usd_today":23000000.0,"budget_wikipedia_today":23000000.0,"budget_tmdb_today":23000000.0,"non_us":false,"straddles":false},{"title":"Sick of Myself","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Norway; Sweden","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Sick_of_Myself_(film)","tmdb":"https://www.themoviedb.org/movie/788734","year":2022,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"EO","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Poland; Italy; United Kingdom","budget_source":"","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/785398","year":2022,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"House of Gucci","verdict":"H","reason":"major studio: Metro-Goldwyn-Mayer Pictures (Amazon MGM)","confidence":"high","majors":"Amazon MGM","countries":"United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/House_of_Gucci","tmdb":"https://www.themoviedb.org/movie/644495","year":2021,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"Fabian: Going to the Dogs","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Germany","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Fabian:_Going_to_the_Dogs","tmdb":"https://www.themoviedb.org/movie/620498","year":2021,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Ninjababy","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Norway","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Ninjababy","tmdb":"https://www.themoviedb.org/movie/654074","year":2021,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"The Worst Person in the World","verdict":"A","reason":"no major studio; budget $6.1M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"Norway; France; Denmark; Sweden","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Worst_Person_in_the_World","tmdb":"https://www.themoviedb.org/movie/660120","year":2021,"budget_usd_today":6095000.0,"budget_wikipedia_today":6439999.999999999,"budget_tmdb_today":5750000.0,"non_us":true,"straddles":false}]},{"id":"verdicts","label":"Sample across decades","file":"out/verdicts.csv","rows":[{"title":"A Prophet","verdict":"A","reason":"no major studio; budget $20.8M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"France; Italy","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/A_Prophet","tmdb":"https://www.themoviedb.org/movie/21575","year":2009,"budget_usd_today":20800000.0,"budget_wikipedia_today":20800000.0,"budget_tmdb_today":20800000.0,"non_us":true,"straddles":false},{"title":"The City Below","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"Germany; France","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/The_City_Below","tmdb":"https://www.themoviedb.org/movie/78400","year":2010,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Caught Stealing","verdict":"H","reason":"major studio: Columbia Pictures (Sony)","confidence":"high","majors":"Sony","countries":"United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Caught_Stealing","tmdb":"https://www.themoviedb.org/movie/1245993","year":2025,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"Mishima: A Life in Four Chapters","verdict":"H","reason":"major studio: Lucasfilm (Disney)","confidence":"high","majors":"Disney","countries":"Japan; United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Mishima:_A_Life_in_Four_Chapters","tmdb":"https://www.themoviedb.org/movie/27064","year":1985,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"And the Ship Sails On","verdict":"A","reason":"no major studio; no budget figure found (rule: treat as A)","confidence":"low","majors":"","countries":"France; Italy","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/And_the_Ship_Sails_On","tmdb":"https://www.themoviedb.org/movie/5622","year":1983,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Something Wild","verdict":"A","reason":"no major studio; budget $21.0M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Something_Wild_(1986_film)","tmdb":"https://www.themoviedb.org/movie/11300","year":1986,"budget_usd_today":21000000.0,"budget_wikipedia_today":21000000.0,"budget_tmdb_today":21000000.0,"non_us":false,"straddles":false},{"title":"Adolescence","verdict":"?","reason":"no matching film found in any source","confidence":"none","majors":"","countries":"","budget_source":"","wikipedia":"","tmdb":"","year":2025,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":null,"straddles":false},{"title":"Triangle","verdict":"A","reason":"no major studio; budget $19.2M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"Australia; United Kingdom","budget_source":"tmdb","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/26466","year":2009,"budget_usd_today":19200000.0,"budget_wikipedia_today":null,"budget_tmdb_today":19200000.0,"non_us":true,"straddles":false},{"title":"Yella","verdict":"A","reason":"no major studio; budget $4.8M in today's money, tmdb (< $35M)","confidence":"high","majors":"","countries":"Germany","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/Yella_(film)","tmdb":"https://www.themoviedb.org/movie/3037","year":2007,"budget_usd_today":4800000.0,"budget_wikipedia_today":null,"budget_tmdb_today":4800000.0,"non_us":true,"straddles":false},{"title":"Red Rock West","verdict":"A","reason":"no major studio; budget $15.0M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Red_Rock_West","tmdb":"https://www.themoviedb.org/movie/10427","year":1993,"budget_usd_today":15000000.0,"budget_wikipedia_today":14000000.0,"budget_tmdb_today":16000000.0,"non_us":false,"straddles":false}]},{"id":"edge","label":"Edge cases","file":"out/edge.csv","rows":[{"title":"Brazil","verdict":"H","reason":"no major studio, but budget $45.0M in today's money, tmdb (> $35M)","confidence":"high","majors":"","countries":"United Kingdom; United States of America","budget_source":"tmdb","wikipedia":"","tmdb":"https://www.themoviedb.org/movie/68","year":1985,"budget_usd_today":45000000.0,"budget_wikipedia_today":null,"budget_tmdb_today":45000000.0,"non_us":false,"straddles":false},{"title":"The Hunger Games","verdict":"H","reason":"no major studio, but budget $97.5M in today's money, tmdb (> $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Hunger_Games_(franchise)","tmdb":"https://www.themoviedb.org/movie/70160","year":2012,"budget_usd_today":97500000.0,"budget_wikipedia_today":null,"budget_tmdb_today":97500000.0,"non_us":false,"straddles":false},{"title":"Moonlight","verdict":"A","reason":"no major studio; budget $5.2M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Moonlight_(2016_film)","tmdb":"https://www.themoviedb.org/movie/376867","year":2016,"budget_usd_today":5200000.0,"budget_wikipedia_today":5200000.0,"budget_tmdb_today":5200000.0,"non_us":false,"straddles":false},{"title":"The Grand Budapest Hotel","verdict":"H","reason":"no major studio, but budget $35.8M in today's money, avg of 2 sources (> $35M)","confidence":"medium","majors":"","countries":"United States; Germany","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/The_Grand_Budapest_Hotel","tmdb":"https://www.themoviedb.org/movie/120467","year":2014,"budget_usd_today":35750000.0,"budget_wikipedia_today":32500000.0,"budget_tmdb_today":39000000.0,"non_us":false,"straddles":true},{"title":"Blow-Up","verdict":"H","reason":"major studio: Metro-Goldwyn-Mayer (Amazon MGM)","confidence":"high","majors":"Amazon MGM","countries":"United Kingdom; Italy","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Blowup","tmdb":"https://www.themoviedb.org/movie/1052","year":1966,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":true,"straddles":false},{"title":"Get Out","verdict":"A","reason":"no major studio; budget $5.8M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"Japan; United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Get_Out","tmdb":"https://www.themoviedb.org/movie/419430","year":2017,"budget_usd_today":5850000.0,"budget_wikipedia_today":5850000.0,"budget_tmdb_today":5850000.0,"non_us":false,"straddles":false},{"title":"Roma","verdict":"A","reason":"no major studio; budget $19.5M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"United States; Mexico","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Roma_(2018_film)","tmdb":"https://www.themoviedb.org/movie/426426","year":2018,"budget_usd_today":19500000.0,"budget_wikipedia_today":19500000.0,"budget_tmdb_today":19500000.0,"non_us":false,"straddles":false},{"title":"Citizen Kane","verdict":"H","reason":"major studio: RKO Radio Pictures (RKO)","confidence":"high","majors":"RKO","countries":"United States","budget_source":"","wikipedia":"https://en.wikipedia.org/wiki/Citizen_Kane","tmdb":"https://www.themoviedb.org/movie/15","year":1941,"budget_usd_today":null,"budget_wikipedia_today":null,"budget_tmdb_today":null,"non_us":false,"straddles":false},{"title":"Parasite","verdict":"A","reason":"no major studio; budget $14.8M in today's money, avg of 2 sources (< $35M)","confidence":"high","majors":"","countries":"South Korea","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Parasite_(2019_film)","tmdb":"https://www.themoviedb.org/movie/496243","year":2019,"budget_usd_today":14795950.0,"budget_wikipedia_today":14820000.0,"budget_tmdb_today":14771900.0,"non_us":true,"straddles":false},{"title":"Everything Everywhere All at Once","verdict":"A","reason":"no major studio; budget $28.7M in today's money, avg of 2 sources (< $35M)","confidence":"medium","majors":"","countries":"United States","budget_source":"wikipedia+tmdb","wikipedia":"https://en.wikipedia.org/wiki/Everything_Everywhere_All_at_Once","tmdb":"https://www.themoviedb.org/movie/545611","year":2022,"budget_usd_today":28750000.0,"budget_wikipedia_today":28749999.999999996,"budget_tmdb_today":28749999.999999996,"non_us":false,"straddles":false}]}],"decades":{"source":"TMDB","generated":"2026-09-20","method":"median of TMDB-reported production budgets for US films credited to a major studio's own production company, nominal dollars of the release decade","caveats":["TMDB reports a budget for a minority of films and those it reports skew large and well known; this is a median of reported budgets.","TMDB company credits mix production and distribution, so a studio pickup can enter the sample.","Sampled up to 240 films per decade by TMDB popularity, which skews towards films still watched today."],"companies":{"Walt Disney Pictures":2,"Touchstone Pictures":9195,"Hollywood Pictures":915,"Pixar":3,"Marvel Studios":420,"Lucasfilm Ltd.":1,"20th Century Fox":25,"20th Century Studios":127928,"Universal Pictures":33,"Illumination":6704,"DreamWorks Animation":521,"Warner Bros. Pictures":174,"New Line Cinema":12,"Paramount Pictures":4,"Columbia Pictures":5,"TriStar Pictures":559,"Sony Pictures":34,"Metro-Goldwyn-Mayer":21,"United Artists":60,"RKO Radio Pictures":6},"decades":[{"decade":1930,"sampled":240,"with_budget":90,"median":697032,"p25":364688,"p75":1294786,"mean":1047495},{"decade":1940,"sampled":240,"with_budget":102,"median":1426500,"p25":860500,"p75":2051000,"mean":1590744},{"decade":1950,"sampled":240,"with_budget":117,"median":2000000,"p25":1271000,"p75":3115000,"mean":2725609},{"decade":1960,"sampled":240,"with_budget":132,"median":3979500,"p25":2000000,"p75":6425000,"mean":5695261},{"decade":1970,"sampled":240,"with_budget":189,"median":4400000,"p25":2600000,"p75":7000000,"mean":6110660},{"decade":1980,"sampled":240,"with_budget":232,"median":15000000,"p25":8500000,"p75":22000000,"mean":15974138},{"decade":1990,"sampled":240,"with_budget":235,"median":45000000,"p25":25000000,"p75":65000000,"mean":49560426},{"decade":2000,"sampled":240,"with_budget":240,"median":85000000,"p25":50750000,"p75":126375000,"mean":91239583},{"decade":2010,"sampled":240,"with_budget":240,"median":126000000,"p25":68750000,"p75":176500000,"mean":128393750},{"decade":2020,"sampled":240,"with_budget":216,"median":90000000,"p25":45000000,"p75":165750000,"mean":112974074}]}}</script>
+<script>
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const M = 1e6;
+
+/* Inflation, as filmheuristic.budget defines it: [[first_year, factor], ...] */
+function inflation(year) {
+  if (year == null) return 1;
+  let f = DATA.inflation[0][1];
+  for (const [y, v] of DATA.inflation) { if (year >= y) f = v; else break; }
+  return f;
+}
+
+const decadeRows = DATA.decades ? DATA.decades.decades.filter(d => d.with_budget > 0) : [];
+const medianFor = year => {
+  if (!decadeRows.length || year == null) return null;
+  const d = Math.floor(year / 10) * 10;
+  let best = decadeRows[0];
+  for (const r of decadeRows) if (Math.abs(r.decade - d) < Math.abs(best.decade - d)) best = r;
+  return best;
+};
+
+const state = {
+  dataset: DATA.datasets[0] ? DATA.datasets[0].id : null,
+  mode: "flat",
+  flat: DATA.threshold_default,
+  share: 0.5,
+};
+
+/* The per-decade slider starts where it reproduces today's rule: the share of a
+   present-day major-studio budget that $35M in today's money already is. */
+if (decadeRows.length) {
+  const now = medianFor(new Date().getFullYear() - 1);
+  if (now && now.median) {
+    const k = DATA.threshold_default / (now.median * inflation(now.decade + 5));
+    state.share = Math.min(1.5, Math.max(0.05, Math.round(k * 20) / 20));
+  }
+}
+
+/* Threshold that applies to one film, always expressed in today's money so it
+   can be compared with budget_usd_today directly. */
+function thresholdFor(film) {
+  if (state.mode === "flat") return state.flat;
+  const row = medianFor(film.year);
+  if (!row) return state.flat;
+  return row.median * state.share * inflation(film.year);
+}
+
+function verdictFor(film) {
+  if (film.verdict === "?") return { v: "?", why: film.reason, step: "none" };
+  if (film.majors) return { v: "H", why: film.reason, step: "1" };
+  const b = film.budget_usd_today;
+  if (b == null)
+    return { v: "A", why: "no major studio; no budget figure found (rule: treat as A)",
+             step: "none" };
+  const t = thresholdFor(film);
+  const over = b > t;
+  const why = `no major studio; budget ${usd(b)} in today's money, `
+            + `${over ? "above" : "below"} ${usd(t)}`;
+  return { v: over ? "H" : "A", why, step: "2", threshold: t,
+           margin: Math.abs(b - t) / t };
+}
+
+const usd = v => v == null ? "—"
+  : v >= 1e9 ? "$" + (v / 1e9).toFixed(2) + "B"
+  : v >= 1e6 ? "$" + (v / M).toFixed(v >= 100 * M ? 0 : 1) + "M"
+  : "$" + Math.round(v / 1e3) + "k";
+
+function render() {
+  const set = DATA.datasets.find(d => d.id === state.dataset);
+  const films = set ? set.rows : [];
+  const scored = films.map(f => ({ f, r: verdictFor(f) }));
+
+  /* Sorted by budget as a multiple of the line that applies to that film, so
+     the cut stays one real line through the list even in per-decade mode,
+     where every film is measured against a different number. In flat mode the
+     divisor is constant and this is just budget order. */
+  const withBudget = scored.filter(x => x.f.budget_usd_today != null && x.r.step !== "none");
+  const step1 = scored.filter(x => x.r.step === "1");
+  const nothing = scored.filter(x => x.r.step === "none");
+  for (const x of withBudget) x.ratio = x.f.budget_usd_today / x.r.threshold;
+  withBudget.sort((a, b) => b.ratio - a.ratio);
+  step1.sort((a, b) => (b.f.year || 0) - (a.f.year || 0));
+  nothing.sort((a, b) => (b.f.year || 0) - (a.f.year || 0));
+
+  const H = scored.filter(x => x.r.v === "H").length;
+  const A = scored.filter(x => x.r.v === "A").length;
+  const Q = scored.filter(x => x.r.v === "?").length;
+  const nonUsA = scored.filter(x => x.r.v === "A" && x.f.non_us).length;
+  const flips = scored.filter(x => x.f.verdict !== "?" && x.r.v !== x.f.verdict);
+  const owed = H * 2;
+
+  document.getElementById("stats").innerHTML = [
+    stat(H, "Hollywood"),
+    stat(A, "Alternative"),
+    stat(A ? (H / A).toFixed(2) : "—", "H per A"),
+    stat(owed + " / " + A, "A films owed / on hand"),
+    stat(nonUsA, "non-US A films"),
+    stat(flips.length, "changed verdict"),
+    Q ? stat(Q, "unresolved") : "",
+  ].join("");
+
+  const head = document.getElementById("list-head");
+  head.textContent = state.mode === "flat"
+    ? `Sorted by budget in today's money — the line sits at ${usd(state.flat)}`
+    : `Sorted by budget as a multiple of that film's own decade line`;
+
+  const parts = [];
+  let cutDrawn = false;
+  for (const x of withBudget) {
+    if (!cutDrawn && x.r.v === "A") {
+      cutDrawn = true;
+      parts.push(`<div class="cut">${state.mode === "flat"
+        ? "the line — " + usd(state.flat) + " in today's money"
+        : "the line — above it, a film outspent its own decade's threshold"}</div>`);
+    }
+    parts.push(filmRow(x));
+  }
+  if (step1.length) {
+    parts.push(`<div class="cut">decided at step 1 — a major studio made or financed these</div>`);
+    parts.push(...step1.map(filmRow));
+  }
+  if (nothing.length) {
+    parts.push(`<div class="cut">step 2 had nothing to weigh — unaffected by the slider</div>`);
+    parts.push(...nothing.map(filmRow));
+  }
+  document.getElementById("films").innerHTML = parts.join("");
+
+  document.getElementById("footer").innerHTML = set
+    ? `${films.length} films from <code>${set.file}</code>. `
+      + `Rebuild with <code>uv run python web/build.py</code> after a new run.`
+    : "";
+  renderDecades();
+  if (typeof history !== "undefined" && history.replaceState) writeHash();
+}
+
+const stat = (n, k) => `<div class="stat"><div class="n">${n}</div><div class="k">${k}</div></div>`;
+
+function filmRow(x) {
+  const { f, r } = x;
+  const flipped = f.verdict !== "?" && r.v !== f.verdict;
+  const tags = [];
+  if (flipped) tags.push(`<span class="tag flip">was ${f.verdict}</span>`);
+  if (r.step === "2" && r.margin != null && r.margin < 0.25)
+    tags.push(`<span class="tag">near the line</span>`);
+  if (f.straddles) tags.push(`<span class="tag">sources disagree</span>`);
+  if (f.non_us) tags.push(`<span class="tag">non-US</span>`);
+  const link = f.wikipedia || f.tmdb;
+  const title = link
+    ? `<a href="${f.wikipedia || f.tmdb}" target="_blank" rel="noopener">${esc(f.title)}</a>`
+    : esc(f.title);
+  const b = f.budget_usd_today;
+  const nominal = b == null ? null : b / inflation(f.year);
+  const sub = b == null ? ""
+    : state.mode === "decade" && x.ratio != null
+      ? `${x.ratio.toFixed(2)}× its line`
+      : `${usd(nominal)} then`;
+  return `<div class="film">
+    <div class="badge ${r.v === "?" ? "Q" : r.v}">${r.v}</div>
+    <div class="title">${title} <span class="yr">${f.year || ""}</span>
+      <span class="why">${esc(r.why)}</span></div>
+    <div class="num">${usd(b)}${sub ? `<span class="sub">${sub}</span>` : ""}</div>
+    <div class="num tagcell">${tags.join(" ")}</div>
+  </div>`;
+}
+
+function renderDecades() {
+  const panel = document.getElementById("decade-panel");
+  if (state.mode !== "decade" || !DATA.decades) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const set = DATA.datasets.find(d => d.id === state.dataset);
+  const counts = {};
+  for (const f of (set ? set.rows : []))
+    if (f.year != null) counts[Math.floor(f.year / 10) * 10] =
+      (counts[Math.floor(f.year / 10) * 10] || 0) + 1;
+
+  const body = DATA.decades.decades.map(d => {
+    const mid = d.decade + 5;
+    const thr = d.median * state.share;
+    const n = counts[d.decade] || 0;
+    return `<tr class="${d.with_budget ? "" : "empty"}">
+      <td>${d.decade}s</td>
+      <td>${d.with_budget ? usd(d.median) : "—"}</td>
+      <td>${d.with_budget ? usd(thr) : "—"}</td>
+      <td>${d.with_budget ? usd(thr * inflation(mid)) : "—"}</td>
+      <td>${d.with_budget}/${d.sampled}</td>
+      <td>${n || "—"}</td></tr>`;
+  }).join("");
+  document.getElementById("decade-table").innerHTML = `
+    <tr><th>Decade</th><th>Median major budget</th><th>Threshold, then</th>
+        <th>Threshold, today</th><th>Budgets sampled</th><th>Films here</th></tr>
+    ${body}`;
+  document.getElementById("decade-caveats").innerHTML =
+    (DATA.decades.caveats || []).map(c => `<li>${esc(c)}</li>`).join("");
+}
+
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* --- wiring --------------------------------------------------------- */
+const sel = document.getElementById("dataset");
+sel.innerHTML = DATA.datasets.map(d =>
+  `<option value="${d.id}">${esc(d.label)} (${d.rows.length})</option>`).join("");
+sel.onchange = () => { state.dataset = sel.value; render(); };
+
+const flatRange = document.getElementById("flat-range");
+flatRange.value = Math.round(DATA.threshold_default / M);
+flatRange.oninput = () => {
+  state.flat = Number(flatRange.value) * M;
+  document.getElementById("flat-val").textContent = usd(state.flat);
+  document.getElementById("flat-note").textContent =
+    `the rule as written uses ${usd(DATA.threshold_default)}`
+    + ` — about ${usd(state.flat / inflation(1985))} for a 1985 film`;
+  render();
+};
+
+const decRange = document.getElementById("decade-range");
+decRange.value = Math.round(state.share * 100);
+decRange.oninput = () => {
+  state.share = Number(decRange.value) / 100;
+  document.getElementById("decade-val").textContent =
+    (state.share * 100).toFixed(0) + "%";
+  const now = medianFor(new Date().getFullYear() - 1);
+  document.getElementById("decade-note").textContent =
+    now ? `of the decade's median major-studio budget — ${usd(now.median * state.share)} in the ${now.decade}s`
+        : "of the decade's median major-studio budget";
+  render();
+};
+
+/* State lives in the URL fragment so a particular setting of the line can be
+   sent to someone as a link. */
+function readHash() {
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (q.has("d") && DATA.datasets.some(s => s.id === q.get("d"))) {
+    state.dataset = q.get("d");
+    sel.value = state.dataset;
+  }
+  if (q.has("t")) {
+    state.flat = Math.max(1, Math.min(150, Number(q.get("t")))) * M;
+    flatRange.value = state.flat / M;
+  }
+  if (q.has("k")) {
+    state.share = Math.max(0.05, Math.min(1.5, Number(q.get("k")) / 100));
+    decRange.value = Math.round(state.share * 100);
+  }
+  return q.get("mode") === "decade" && decadeRows.length ? "decade" : "flat";
+}
+
+function writeHash() {
+  const q = new URLSearchParams({
+    d: state.dataset, mode: state.mode,
+    ...(state.mode === "flat" ? { t: String(state.flat / M) }
+                              : { k: String(Math.round(state.share * 100)) }),
+  });
+  history.replaceState(null, "", "#" + q);
+}
+
+function setMode(m) {
+  state.mode = m;
+  document.getElementById("mode-flat").setAttribute("aria-pressed", m === "flat");
+  document.getElementById("mode-decade").setAttribute("aria-pressed", m === "decade");
+  document.getElementById("flat-slider").hidden = m !== "flat";
+  document.getElementById("decade-slider").hidden = m !== "decade";
+  render();
+}
+document.getElementById("mode-flat").onclick = () => setMode("flat");
+const decBtn = document.getElementById("mode-decade");
+if (!decadeRows.length) {
+  decBtn.disabled = true;
+  decBtn.title = "run scripts/decade_budgets.py to enable this";
+} else {
+  decBtn.onclick = () => setMode("decade");
+}
+
+const initialMode = readHash();
+flatRange.oninput();
+decRange.oninput();
+setMode(initialMode);
+</script>
+</body>
+</html>
