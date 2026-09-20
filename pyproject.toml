@@ -3,6 +3,8 @@ name = "filmheuristic"
 version = "0.1.0"
 description = "Classify films as Hollywood (H) or Alternative (A) from a Letterboxd export"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = ["httpx>=0.27"]
 
 [project.scripts]

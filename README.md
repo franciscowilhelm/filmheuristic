@@ -165,6 +165,11 @@ out/           classification results (committed)
 data/          Letterboxd export and API cache (not committed)
 ```
 
+## License
+
+MIT — see [LICENSE](LICENSE). This covers the code only; film metadata carries the terms
+described below.
+
 ## Credits and attribution
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
