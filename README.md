@@ -278,6 +278,19 @@ for an unreleased blockbuster, so two cases are separated out:
 - **Older films have thinner data.** Budget coverage on Wikipedia and TMDB falls off
   before the 1980s, and the inflation multipliers are rough by construction. Expect more
   low-confidence A verdicts the further back the watchlist goes.
+- **Step 1 is blind to mid-century studio financing.** From roughly 1950 to 1980 the
+  majors financed and distributed films that a nominally independent company produced,
+  and Wikipedia records that arrangement exactly as it was: `|studio=` names the
+  producer, `|distributor=` names the major. *Blazing Saddles* is Crossbow Productions
+  (Warner Bros.), *Cool Hand Luke* is Jalem (Warner Bros.-Seven Arts), *Anatomy of a
+  Murder* is Carlyle (Columbia), *Midnight Cowboy* is Jerome Hellman (United Artists),
+  *Hannah and Her Sisters* is Rollins/Joffe (Orion). Step 1 refuses to count a
+  distributor, which is the rule that keeps *Brazil* and *Red Rock West* honest, so for
+  this entire era it answers "no major" and the budget test decides alone. The threshold
+  therefore does *more* work on old films than on new ones, which is the opposite of how
+  it looks. On the full watchlist this is where flat and per-decade thresholds disagree:
+  all 18 films they classify differently are pre-1990, and every one is A under the flat
+  $35M and H under its own decade's line.
 - **Inflation is consumer-price inflation, which film budgets have outrun.**
   The factors in `budget.py` imply a 1980s film cost 2.3x less than a 2010s one;
   the median major-studio budgets in [Threshold explorer](#threshold-explorer)
@@ -306,7 +319,7 @@ web/
   template.html       the threshold explorer's markup and logic
   build.py            bakes out/*.csv and the decade table into index.html
   index.html          the built page (generated, committed)
-out/           classification results (committed)
+out/           classification results (committed; all.csv is the whole watchlist)
 data/          Letterboxd export and API cache (not committed)
 ```
 

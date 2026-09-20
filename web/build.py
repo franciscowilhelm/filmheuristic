@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from filmheuristic.budget import THRESHOLD_USD_TODAY, inflation_factor  # noqa: E402
 
 DATASETS = [
+    ("all.csv", "Whole watchlist"),
     ("recent50.csv", "50 most recent"),
     ("verdicts.csv", "Sample across decades"),
     ("edge.csv", "Edge cases"),
