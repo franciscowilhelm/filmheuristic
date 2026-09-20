@@ -1,0 +1,61 @@
+# Publishes the threshold explorer to GitHub Pages.
+#
+# The page is rebuilt here rather than taken from the committed index.html, so
+# what is published cannot drift from the CSVs in out/ or from the inflation
+# factors in src/. build.py has no third-party dependencies, so plain Python
+# with no install step is enough.
+name: Deploy the threshold explorer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "out/**"
+      - "src/filmheuristic/budget.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it half way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the page
+        run: python web/build.py
+
+      - name: Stage the site
+        # Only index.html is served: it is self-contained, and the template and
+        # build script have no business being fetched from the site.
+        run: |
+          mkdir -p _site
+          cp web/index.html _site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

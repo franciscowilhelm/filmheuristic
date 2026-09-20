@@ -124,6 +124,18 @@ and watching the watchlist re-sort as it moves. Open it directly — no server:
 uv run python web/build.py && open web/index.html
 ```
 
+### Publishing it
+
+`.github/workflows/pages.yml` deploys the explorer to GitHub Pages on any push to `main`
+that touches `web/`, `out/` or `budget.py`. It rebuilds the page in CI rather than
+publishing the committed `index.html`, so what is served cannot drift from the CSVs, and
+it serves only `index.html`, which is self-contained.
+
+It needs enabling once: **Settings → Pages → Source → GitHub Actions**. The site then
+lands at `https://<user>.github.io/filmheuristic/`. The page carries the attribution TMDB
+and Wikimedia require, which is a condition of publishing their data rather than a
+courtesy.
+
 A collapsible **"how the rule decides"** box draws the current settings as a flowchart,
 rebuilt whenever a control moves, so the diagram always describes the rule as it stands
 rather than as it was written. It renders with Mermaid from a CDN and falls back to a

@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Threshold Explorer</title>
+<meta name="description" content="Adjust the budget threshold in a Hollywood
+  versus Alternative film heuristic and watch the verdicts move.">
 <style>
   :root {
     --bg: #fbfaf8; --panel: #fff; --ink: #1a1a1a; --dim: #6b6b6b;
@@ -93,7 +95,9 @@
   #flow-diagram svg { height: auto; }
   #flow-fallback { font-family: var(--mono); font-size: 12px; color: var(--dim);
     text-align: left; white-space: pre; margin: 0; }
-  footer { margin-top: 36px; font-size: 12.5px; color: var(--dim); }
+  footer { margin-top: 36px; font-size: 12.5px; color: var(--dim);
+    line-height: 1.6; max-width: 70ch; }
+  footer a { color: inherit; }
   @media (max-width: 620px) {
     .film { grid-template-columns: 22px 1fr auto; }
     .film .tagcell { grid-column: 2 / -1; }
@@ -343,8 +347,16 @@ function render() {
   document.getElementById("films").innerHTML = parts.join("");
 
   document.getElementById("footer").innerHTML = set
-    ? `${films.length} films from <code>${set.file}</code>. `
-      + `Rebuild with <code>uv run python web/build.py</code> after a new run.`
+    ? `${films.length} films from <code>${set.file}</code>, classified by `
+      + `<a href="https://github.com/franciscowilhelm/filmheuristic" `
+      + `target="_blank" rel="noopener">filmheuristic</a>. `
+      + `Film metadata from TMDB, Wikipedia and Wikidata. This product uses `
+      + `the TMDB API but is not endorsed or certified by TMDB. Wikipedia `
+      + `content is available under `
+      + `<a href="https://creativecommons.org/licenses/by-sa/4.0/" `
+      + `target="_blank" rel="noopener">CC BY-SA</a>, Wikidata under `
+      + `<a href="https://creativecommons.org/publicdomain/zero/1.0/" `
+      + `target="_blank" rel="noopener">CC0</a>.`
     : "";
   renderDecades();
   if (typeof history !== "undefined" && history.replaceState) writeHash();
